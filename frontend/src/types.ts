@@ -69,11 +69,22 @@ export const isVirtual = (p: Point) =>
   );
 export const formatBytes = (v: number) =>
   v >= 1e6 ? `${(v / 1e6).toFixed(1)} MB` : `${(v / 1e3).toFixed(0)} KB`;
+export class ApiError extends Error {
+  constructor(
+    message: string,
+    public status: number,
+  ) {
+    super(message);
+  }
+}
 export async function api<T>(url: string, options?: RequestInit): Promise<T> {
   const response = await fetch(url, options);
   if (!response.ok) {
     const error = await response.json().catch(() => null);
-    throw new Error(error?.detail || `请求失败 (${response.status})`);
+    throw new ApiError(
+      error?.detail || `请求失败 (${response.status})`,
+      response.status,
+    );
   }
   return response.json();
 }

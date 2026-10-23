@@ -36,7 +36,7 @@
 
 ### macOS 桌面应用（推荐）
 
-在 [Releases](https://github.com/SourorangeChen/C3D_Reader/releases) 下载 `C3D-Reader-0.3.1-macOS-arm64.dmg`，双击打开，将 **C3D Reader.app** 拖到旁边的 **Applications（应用程序）** 文件夹，然后从“应用程序”双击启动。安装后可推出磁盘镜像。也提供 ZIP 解压版本。当前构建适用于 **Apple Silicon（M1 / M2 / M3 / M4 等）和 macOS 14+**，Intel Mac 尚未提供安装包。
+在 [Releases](https://github.com/SourorangeChen/C3D_Reader/releases) 下载 `C3D-Reader-0.3.2-macOS-arm64.dmg`，双击打开，将 **C3D Reader.app** 拖到旁边的 **Applications（应用程序）** 文件夹，然后从“应用程序”双击启动。安装后可推出磁盘镜像。也提供 ZIP 解压版本。当前构建适用于 **Apple Silicon（M1 / M2 / M3 / M4 等）和 macOS 14+**，Intel Mac 尚未提供安装包。
 
 桌面版已经包含 Python、读取引擎、Chromium 和前端资源，使用时无需安装 Python / Node.js，也无需联网或先启动网页服务。
 
@@ -46,7 +46,7 @@
 - 点击「打开文件夹」或按 **⌘⇧O** 批量浏览目录。
 - 点击左下角「设置」，或按 **⌘,**，选择主题和界面语言。
 - 拖动文件面板右侧、信息面板左侧及 3D / 曲线之间的分隔条调整大小；双击分隔条恢复该项默认值。也可聚焦分隔条，用方向键调整，Enter 恢复默认；设置中可恢复整个布局。
-- 在文件列表下方点击「批量导出 CSV」→「开始导出」，完成后下载 ZIP。关闭进度窗口仍会继续处理，再次点击即可查看进度。
+- 在文件列表下方点击「批量导出 CSV」→「开始导出」，完成后下载 ZIP。显示点位 / 模拟通道的逐块帧进度、ZIP 压缩进度和用时；大文件也会持续更新。关闭窗口或刷新界面后再次打开，可连接回原任务。
 - 退出或关闭最后一个窗口时，本地读取服务会自动结束。
 
 当前构建使用 **ad-hoc 签名，尚未通过 Apple Developer ID 签名和公证**。本机构建可直接运行；从互联网下载到另一台 Mac 后可能被 Gatekeeper 阻止。仅在信任本项目的情况下，通过 macOS“隐私与安全性”中的“仍要打开”完成系统确认。不要关闭系统安全检查。

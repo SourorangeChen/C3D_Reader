@@ -21,7 +21,7 @@ from .demo import create_demo
 ROOT = Path(__file__).resolve().parents[1]
 CONFIG_DIR = Path(os.environ.get("C3D_READER_CONFIG_DIR", Path.home() / ".config" / "c3d-reader"))
 CONFIG_DIR.mkdir(parents=True, exist_ok=True)
-app = FastAPI(title="C3D Reader", version="0.3.1", docs_url=None, redoc_url=None)
+app = FastAPI(title="C3D Reader", version="0.3.2", docs_url=None, redoc_url=None)
 app.add_middleware(
     TrustedHostMiddleware,
     allowed_hosts=["localhost", "127.0.0.1", "[::1]", "testserver"],
@@ -202,6 +202,11 @@ def metadata(key: str):
     return clean_json(dict(id=key, **get_acq(key).metadata()))
 
 
+@app.get("/api/library/exports")
+def current_folder_export():
+    return batch_exports.current()
+
+
 @app.post("/api/library/exports")
 def start_folder_export():
     # Snapshot the current directory; changing the library cannot redirect a job.
@@ -374,7 +379,7 @@ def export(
 
 @app.get("/api/health")
 def health():
-    return {"status": "ok", "version": "0.3.1"}
+    return {"status": "ok", "version": "0.3.2"}
 
 
 dist = ROOT / "frontend" / "dist"

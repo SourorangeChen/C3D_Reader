@@ -82,10 +82,10 @@ def test_cancelled_export_cleans_up_and_can_restart(client, tmp_path, monkeypatc
     entered, release = threading.Event(), threading.Event()
     original = Acquisition.csv_rows
 
-    def paused(self, *args):
+    def paused(self, *args, **kwargs):
         entered.set()
         assert release.wait(5)
-        yield from original(self, *args)
+        yield from original(self, *args, **kwargs)
 
     monkeypatch.setattr(Acquisition, "csv_rows", paused)
     job = client.post("/api/library/exports").json()
@@ -199,3 +199,108 @@ def test_folder_csv_retains_com_channels_and_roles(client, tmp_path):
         assert "Demo:CentreOfMass:Z (mm)" in rows[0]
         assert "Demo:CentreOfMassFloor:Z (mm)" in rows[0]
         assert float(rows[1][rows[0].index("Demo:CentreOfMassFloor:Z (mm)")]) == 0
+
+
+def test_progress_is_visible_before_the_first_file_finishes(client, tmp_path, monkeypatch):
+    create_demo(tmp_path / "synthetic.c3d")
+    client.post("/api/library", json={"path": str(tmp_path)})
+    entered, release = threading.Event(), threading.Event()
+    original = Acquisition.csv_rows
+
+    def paused(self, *args, progress=None):
+        def report(done, total):
+            progress(done, total)
+            if done and not entered.is_set():
+                entered.set()
+                assert release.wait(5)
+
+        yield from original(self, *args, progress=report)
+
+    monkeypatch.setattr(Acquisition, "csv_rows", paused)
+    job = client.post("/api/library/exports").json()
+    try:
+        assert entered.wait(5)
+        current = client.get("/api/library/exports").json()
+        assert current["id"] == job["id"]
+        assert current["status"] == "running" and current["completed"] == 0
+        assert current["stage"] == "point"
+        assert 0 < current["processed"] < current["stageTotal"] == 800
+        assert "cancel" not in current and "started" not in current
+        client.delete(f"/api/library/exports/{job['id']}")
+    finally:
+        release.set()
+    assert wait_done(client, job["id"])["status"] == "cancelled"
+
+
+def test_staging_disk_full_aborts_with_actionable_error(client, tmp_path, monkeypatch):
+    import errno
+    from pathlib import Path
+
+    create_demo(tmp_path / "synthetic.c3d")
+    client.post("/api/library", json={"path": str(tmp_path)})
+    original = Path.open
+
+    def no_space(path, *args, **kwargs):
+        if path.name == "points.csv" and path.parent.name == "staging":
+            raise OSError(errno.ENOSPC, "private path must never be returned")
+        return original(path, *args, **kwargs)
+
+    monkeypatch.setattr(Path, "open", no_space)
+    job = client.post("/api/library/exports").json()
+    result = wait_done(client, job["id"])
+    assert result["status"] == "error" and result["errorCode"] == "diskFull"
+    assert result["completed"] == 0
+    assert "private path" not in json.dumps(result)
+    assert client.get(f"/api/library/exports/{job['id']}/download").status_code == 409
+
+
+def test_wide_analog_csv_uses_small_cancellable_blocks(tmp_path):
+    import c3d
+    import numpy as np
+
+    writer = c3d.Writer(point_rate=100, analog_rate=20000)
+    writer.set_point_labels(["SYNTHETIC"])
+    writer.set_analog_labels([f"Synthetic {i}" for i in range(32)])
+    writer.add_frames([(np.array([[1, 2, 3, 0.1, 7.0]]), np.ones((32, 200))) for _ in range(24)])
+    path = tmp_path / "synthetic-wide.c3d"
+    with path.open("wb") as stream:
+        writer.write(stream)
+    acq = Acquisition(path)
+    updates = []
+    chunks = list(
+        acq.csv_rows(
+            "analog",
+            list(range(32)),
+            0,
+            24,
+            progress=lambda done, total: updates.append((done, total)),
+        )
+    )
+    assert updates == [(0, 24), (10, 24), (20, 24), (24, 24)]
+    rows = list(csv.reader(io.StringIO("".join(chunks))))
+    assert len(rows) == 4801 and len(rows[0]) == 35
+    assert float(rows[-1][2]) == 4799 / 20000
+
+
+def test_workspace_allocation_failure_preserves_previous_download(client, tmp_path, monkeypatch):
+    import errno
+
+    import backend.batch_export as module
+
+    create_demo(tmp_path / "synthetic.c3d")
+    client.post("/api/library", json={"path": str(tmp_path)})
+    job = client.post("/api/library/exports").json()
+    assert wait_done(client, job["id"])["status"] == "ready"
+
+    def no_space(**kwargs):
+        raise OSError(errno.ENOSPC, "private system path")
+
+    monkeypatch.setattr(module.tempfile, "mkdtemp", no_space)
+    response = client.post("/api/library/exports")
+    assert response.status_code == 507 and "private system path" not in response.text
+    current = client.get("/api/library/exports").json()
+    assert current["id"] == job["id"] and current["status"] == "ready"
+    response = client.get(f"/api/library/exports/{job['id']}/download")
+    assert response.status_code == 200
+    with zipfile.ZipFile(io.BytesIO(response.content)) as archive:
+        assert archive.testzip() is None

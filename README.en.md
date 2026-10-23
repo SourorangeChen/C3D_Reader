@@ -36,7 +36,7 @@ Recorded from the real interface using the built-in synthetic walking acquisitio
 
 ### macOS desktop app (recommended)
 
-Download `C3D-Reader-0.3.1-macOS-arm64.dmg` from [Releases](https://github.com/SourorangeChen/C3D_Reader/releases). Double-click the disk image, drag **C3D Reader.app** onto the **Applications** shortcut, then launch it from Applications. Eject the disk image after installation. A ZIP archive is also available. The current build requires **Apple Silicon (M1 / M2 / M3 / M4 and later) and macOS 14+**. An Intel Mac build is not available.
+Download `C3D-Reader-0.3.2-macOS-arm64.dmg` from [Releases](https://github.com/SourorangeChen/C3D_Reader/releases). Double-click the disk image, drag **C3D Reader.app** onto the **Applications** shortcut, then launch it from Applications. Eject the disk image after installation. A ZIP archive is also available. The current build requires **Apple Silicon (M1 / M2 / M3 / M4 and later) and macOS 14+**. An Intel Mac build is not available.
 
 The desktop app bundles Python, the reading engine, Chromium and frontend assets. You do not need to install Python or Node.js, connect to the internet, or start a web service yourself.
 
@@ -46,7 +46,7 @@ The desktop app bundles Python, the reading engine, Chromium and frontend assets
 - Click **打开文件夹 (Open folder)** or press **⌘⇧O** to browse a directory of recordings.
 - Click **Settings** at the bottom left or press **⌘,** to choose the theme and interface language.
 - Drag the right edge of the file panel, the left edge of the inspector, or the divider between 3D and signals. Double-click a divider to reset it. Focus a divider and use arrow keys to resize or Enter to reset; Settings can reset the entire layout.
-- Click **Export folder CSV → Start export**, then download the ZIP. Closing the progress window keeps the job running; reopen it to check progress.
+- Click **Export folder CSV → Start export**, then download the ZIP. Frame progress for point / analog conversion, ZIP progress and elapsed time update during large files. Close or reload the interface and reopen the dialog to reconnect to the task.
 - Quitting the app or closing its last window automatically stops the local reading service.
 
 The current build is **ad-hoc signed; it has not been Apple Developer ID signed or notarized**. Locally built copies can run directly, but Gatekeeper may block a copy downloaded onto another Mac. If you trust the project, confirm it using **Open Anyway** in macOS **Privacy & Security**. Do not disable system security checks.

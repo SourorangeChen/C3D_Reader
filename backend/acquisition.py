@@ -354,7 +354,13 @@ class Acquisition:
             groups.append(dict(name=name, parameters=params))
         return groups
 
-    def csv_rows(self, kind, indices, start, stop):
+    def csv_rows(self, kind, indices, start, stop, progress=None):
+        # Bound work per chunk by channel/sample count as well as frame count.
+        # A fixed 512-frame analog block can contain millions of CSV cells.
+        cells_per_frame = max(1, len(indices) * (4 if kind == "point" else self.samples))
+        block_frames = max(1, min(256, 65536 // cells_per_frame))
+        if progress:
+            progress(0, stop - start)
         buffer = io.StringIO()
         writer = csv.writer(buffer)
         if kind == "point":
@@ -372,21 +378,24 @@ class Acquisition:
                 + [f"{self.analog_labels[i]} ({self.analog_units[i]})" for i in indices]
             )
         yield buffer.getvalue()
-        for base in range(start, stop, 512):
-            end = min(stop, base + 512)
+        for base in range(start, stop, block_frames):
+            end = min(stop, base + block_frames)
             buffer.seek(0)
             buffer.truncate(0)
             if kind == "point":
                 xyz, residual = self.points(base, end)
-                for j, position in enumerate(xyz):
-                    row = [base + j + self.first, (base + j) / self.rate]
-                    for i in indices:
-                        row.extend([float(v) if np.isfinite(v) else "" for v in position[i]])
-                        row.append(float(residual[j, i]))
-                    writer.writerow(row)
+                selected = xyz[:, indices, :]
+                cells = np.empty((end - base, len(indices), 4), dtype=object)
+                cells[..., :3] = selected
+                cells[..., :3][~np.isfinite(selected)] = ""
+                cells[..., 3] = residual[:, indices].astype(np.float64)
+                for j, row in enumerate(cells.reshape(end - base, -1).tolist()):
+                    writer.writerow([base + j + self.first, (base + j) / self.rate] + row)
             else:
-                values = [self.analog(i, base, end) for i in indices]
-                for j in range((end - base) * self.samples):
+                values = np.column_stack([self.analog(i, base, end) for i in indices])
+                cells = values.astype(object)
+                cells[~np.isfinite(values)] = ""
+                for j, row in enumerate(cells.tolist()):
                     sample = base * self.samples + j
                     writer.writerow(
                         [
@@ -394,6 +403,8 @@ class Acquisition:
                             self.first + sample // self.samples,
                             sample / self.analog_rate,
                         ]
-                        + [float(v[j]) if np.isfinite(v[j]) else "" for v in values]
+                        + row
                     )
             yield buffer.getvalue()
+            if progress:
+                progress(end - start, stop - start)

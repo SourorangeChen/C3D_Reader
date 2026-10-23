@@ -1,5 +1,20 @@
 // UI copy only. Acquisition labels, events and parameter values remain verbatim.
 export const english: Record<string, string> = {
+  "导出任务已失效，请重新开始。":
+    "The export task is no longer available. Start a new export.",
+  "暂时无法连接导出服务，正在重试…":
+    "Cannot reach the export service. Retrying…",
+  "已连接到现有导出任务。": "Reconnected to the existing export task.",
+  "本机临时磁盘空间不足，请释放空间后重新导出。":
+    "The local temporary disk is full. Free some space and export again.",
+  "正在转换全部点位（含已有 COM）":
+    "Converting all points (including source COM)",
+  正在转换全部模拟通道: "Converting all analog channels",
+  "正在压缩 ZIP": "Compressing ZIP",
+  正在读取文件: "Reading file",
+  "已用时 {0} 秒": "Elapsed: {0} s",
+  当前阶段进度: "Current stage progress",
+  "{0} / {1} 帧": "{0} / {1} frames",
   "模拟 CSV 每个采样点一行，保留全部采样、原始帧号、标签和单位。":
     "Analog CSVs contain one row per sample, preserving all samples, original frame numbers, labels and units.",
   "选择导出内容；全部点位包含文件中的所有关键点、模型输出和已有质心数据，不受通道搜索或可见性影响。":
@@ -275,6 +290,10 @@ export const english: Record<string, string> = {
     "This folder does not exist or is not mounted.",
 };
 export const chineseErrors: Record<string, string> = {
+  "Not enough temporary disk space. Free space and retry.":
+    "本机临时磁盘空间不足，请释放空间后重试。",
+  "Cannot create the temporary export folder. Check disk permissions.":
+    "无法创建临时导出目录，请检查磁盘权限。",
   "No matching source channels are available for this export.":
     "文件中没有可用于此导出的源通道。",
   "COM export requires point data.": "COM 导出需要点位数据。",

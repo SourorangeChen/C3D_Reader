@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Download, X } from "lucide-react";
-import { api } from "./types";
+import { api, ApiError } from "./types";
 import { usePreferences } from "./Preferences";
 
 type Job = {
@@ -12,6 +12,11 @@ type Job = {
   succeeded: number;
   failed: number;
   current: string;
+  stage: "reading" | "point" | "analog" | "zip";
+  processed: number;
+  stageTotal: number;
+  elapsedSeconds: number;
+  errorCode: "diskFull" | null;
   errors: string[];
 };
 export function BatchExportDialog({
@@ -31,52 +36,41 @@ export function BatchExportDialog({
   const [cancelling, setCancelling] = useState(false);
   const [error, setError] = useState("");
   useEffect(() => {
-    let disposed = false;
-    let id: string | null = null;
-    try {
-      id = sessionStorage.getItem("c3d-folder-export");
-    } catch {}
-    if (id)
-      void api<Job>(`/api/library/exports/${encodeURIComponent(id)}`)
-        .then((data) => {
-          if (!disposed) setJob(data);
-        })
-        .catch(() => {
-          try {
-            sessionStorage.removeItem("c3d-folder-export");
-          } catch {}
-        });
-    return () => {
-      disposed = true;
-    };
-  }, []);
-  useEffect(() => {
-    if (job) {
-      try {
-        sessionStorage.setItem("c3d-folder-export", job.id);
-      } catch {}
-    }
+    setCancelling(false);
   }, [job?.id]);
   useEffect(() => {
-    if (!visible || !job || job.status !== "ready") return;
     let disposed = false;
-    void api<Job>(`/api/library/exports/${job.id}`)
+    if (!visible) return;
+    // The backend owns the task. Reconnect after reloads and across tabs instead
+    // of trusting a stale sessionStorage ID or leaving a 409 task inaccessible.
+    setPending(true);
+    void api<Job | null>("/api/library/exports", {
+      signal: AbortSignal.timeout(10000),
+    })
       .then((data) => {
-        if (!disposed) setJob(data);
+        if (!disposed) {
+          setJob(data);
+          setError("");
+        }
       })
       .catch((e) => {
         if (!disposed) setError(e.message);
+      })
+      .finally(() => {
+        if (!disposed) setPending(false);
       });
     return () => {
       disposed = true;
     };
-  }, [visible, job?.id, job?.status]);
+  }, [visible]);
   useEffect(() => {
     if (!job || job.status !== "running") return;
     let disposed = false,
       timer = 0;
-    const controller = new AbortController();
+    let controller: AbortController | null = null;
     const poll = async () => {
+      controller = new AbortController();
+      const timeout = window.setTimeout(() => controller?.abort(), 10000);
       try {
         const data = await api<Job>(`/api/library/exports/${job.id}`, {
           signal: controller.signal,
@@ -88,26 +82,62 @@ export function BatchExportDialog({
         }
       } catch (e) {
         if (!disposed) {
-          setError((e as Error).message);
-          timer = window.setTimeout(poll, 2000);
+          if (e instanceof ApiError && e.status === 404) {
+            setJob(null);
+            setError("导出任务已失效，请重新开始。");
+          } else {
+            setError("暂时无法连接导出服务，正在重试…");
+            timer = window.setTimeout(poll, 2000);
+          }
         }
+      } finally {
+        clearTimeout(timeout);
       }
     };
     timer = window.setTimeout(poll, 200);
     return () => {
       disposed = true;
-      controller.abort();
+      controller?.abort();
       clearTimeout(timer);
     };
   }, [job?.id, job?.status]);
   const start = async () => {
+    const previousId = job?.id;
     setPending(true);
     setError("");
     setCancelling(false);
     try {
-      setJob(await api<Job>("/api/library/exports", { method: "POST" }));
+      setJob(
+        await api<Job>("/api/library/exports", {
+          method: "POST",
+          signal: AbortSignal.timeout(10000),
+        }),
+      );
     } catch (e) {
-      setError((e as Error).message);
+      // A timed-out/lost POST response may still have started a worker. Claim
+      // that job before offering another start, including after HTTP 5xx.
+      if (
+        !(e instanceof ApiError) ||
+        e.status === 409 ||
+        (e.status >= 500 && e.status !== 507)
+      ) {
+        try {
+          const current = await api<Job | null>("/api/library/exports", {
+            signal: AbortSignal.timeout(10000),
+          });
+          if (
+            current &&
+            (current.id !== previousId ||
+              current.status === "running" ||
+              (e instanceof ApiError && e.status === 409))
+          ) {
+            setJob(current);
+            setError("已连接到现有导出任务。");
+          } else setError((e as Error).message);
+        } catch (reconnectError) {
+          setError((reconnectError as Error).message);
+        }
+      } else setError((e as Error).message);
     } finally {
       setPending(false);
     }
@@ -117,7 +147,10 @@ export function BatchExportDialog({
     setCancelling(true);
     try {
       setJob(
-        await api<Job>(`/api/library/exports/${job.id}`, { method: "DELETE" }),
+        await api<Job>(`/api/library/exports/${job.id}`, {
+          method: "DELETE",
+          signal: AbortSignal.timeout(10000),
+        }),
       );
     } catch (e) {
       setError((e as Error).message);
@@ -130,7 +163,9 @@ export function BatchExportDialog({
     setPending(true);
     setError("");
     try {
-      const latest = await api<Job>(`/api/library/exports/${job.id}`);
+      const latest = await api<Job>(`/api/library/exports/${job.id}`, {
+        signal: AbortSignal.timeout(10000),
+      });
       setJob(latest);
       if (latest.status === "ready") {
         const link = document.createElement("a");
@@ -200,7 +235,11 @@ export function BatchExportDialog({
                     ? t("导出已取消，可以重新开始。")
                     : job.status === "expired"
                       ? t("导出已过期，请重新开始。")
-                      : t("导出失败，请检查磁盘空间和文件权限后重试。")}
+                      : t(
+                          job.errorCode === "diskFull"
+                            ? "本机临时磁盘空间不足，请释放空间后重新导出。"
+                            : "导出失败，请检查磁盘空间和文件权限后重试。",
+                        )}
             </strong>
             <progress
               max={job.total}
@@ -214,6 +253,34 @@ export function BatchExportDialog({
             {job.current && (
               <div className="batch-current" title={job.current}>
                 {job.current}
+              </div>
+            )}
+            {active && (
+              <div className="batch-stage">
+                <div>
+                  {t(
+                    job.stage === "point"
+                      ? "正在转换全部点位（含已有 COM）"
+                      : job.stage === "analog"
+                        ? "正在转换全部模拟通道"
+                        : job.stage === "zip"
+                          ? "正在压缩 ZIP"
+                          : "正在读取文件",
+                  )}{" "}
+                  · {t("已用时 {0} 秒", [job.elapsedSeconds])}
+                </div>
+                <progress
+                  max={job.stageTotal || 1}
+                  value={job.stageTotal ? job.processed : undefined}
+                  aria-label={t("当前阶段进度")}
+                />
+                {!!job.stageTotal && (
+                  <div>
+                    {job.stage === "zip"
+                      ? `${Math.floor((job.processed / job.stageTotal) * 100)}%`
+                      : t("{0} / {1} 帧", [job.processed, job.stageTotal])}
+                  </div>
+                )}
               </div>
             )}
             {!!job.errors.length && (

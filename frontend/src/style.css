@@ -2155,6 +2155,11 @@ button:hover:not(:disabled) {
   height: 6px;
   accent-color: var(--accent);
 }
+.batch-stage {
+  display: grid;
+  gap: 8px;
+  font-variant-numeric: tabular-nums;
+}
 .batch-current {
   overflow: hidden;
   white-space: nowrap;

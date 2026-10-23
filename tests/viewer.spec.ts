@@ -418,3 +418,151 @@ test("source COM and floor projection are visible and exportable, including Engl
     await rm(folder, { recursive: true, force: true });
   }
 });
+
+test("batch export reconnects, shows frame progress and recovers a lost task", async ({
+  page,
+}) => {
+  const library = await (await page.request.get("/api/library")).json();
+  await page.route("**/api/library", (route) =>
+    route.fulfill({
+      json: {
+        ...library,
+        folder: "/synthetic",
+        files: [{ id: "demo", name: "synthetic.c3d", size: 1024 }],
+      },
+    }),
+  );
+  const job = {
+    id: "synthetic-progress-task",
+    folderName: "Synthetic recordings",
+    status: "running",
+    total: 2,
+    completed: 0,
+    succeeded: 0,
+    failed: 0,
+    current: "synthetic.c3d",
+    errors: [],
+    stage: "point",
+    processed: 256,
+    stageTotal: 800,
+    elapsedSeconds: 3,
+    errorCode: null,
+  };
+  let missing = false;
+  let offline = false;
+  await page.route("**/api/library/exports", (route) =>
+    route.fulfill({ json: job }),
+  );
+  await page.route("**/api/library/exports/synthetic-progress-*", (route) => {
+    if (offline) return route.abort();
+    return missing
+      ? route.fulfill({ status: 404, json: { detail: "Export not found" } })
+      : route.fulfill({ json: job });
+  });
+  await page.reload();
+  await page.getByRole("button", { name: "批量导出 CSV", exact: true }).click();
+  await expect(page.getByRole("dialog")).toContainText("256 / 800 帧");
+  await expect(
+    page.getByRole("button", { name: "取消导出", exact: true }),
+  ).toBeEnabled();
+  await page.getByRole("button", { name: "取消导出", exact: true }).click();
+  await expect(
+    page.getByRole("button", { name: "正在取消…", exact: true }),
+  ).toBeDisabled();
+  await page.getByRole("button", { name: "关闭窗口", exact: true }).click();
+  job.id = "synthetic-progress-next";
+  await page.getByRole("button", { name: "批量导出 CSV", exact: true }).click();
+  await expect(
+    page.getByRole("button", { name: "取消导出", exact: true }),
+  ).toBeEnabled();
+  job.processed = 512;
+  await expect(page.getByRole("dialog")).toContainText("512 / 800 帧");
+  job.stage = "analog";
+  job.processed = 128;
+  await expect(page.getByRole("dialog")).toContainText("正在转换全部模拟通道");
+  await page.screenshot({ path: ".local/screenshots/batch-progress-zh.png" });
+  await page.getByRole("button", { name: "关闭窗口", exact: true }).click();
+  await page.reload();
+  await page.getByRole("button", { name: "批量导出 CSV", exact: true }).click();
+  await expect(page.getByRole("dialog")).toContainText("128 / 800 帧");
+  job.stage = "zip";
+  job.processed = 400;
+  await expect(page.getByRole("dialog")).toContainText("正在压缩 ZIP");
+  await expect(page.getByRole("dialog")).toContainText("50%");
+  await page.getByRole("button", { name: "关闭窗口", exact: true }).click();
+  await page.getByRole("button", { name: "设置", exact: true }).click();
+  await page.getByLabel("界面语言").selectOption("en");
+  await page.getByLabel("Theme", { exact: true }).selectOption("light");
+  await page.getByRole("button", { name: "Done", exact: true }).click();
+  await page
+    .getByRole("button", { name: "Export folder CSV", exact: true })
+    .click();
+  await page.setViewportSize({ width: 390, height: 844 });
+  await expect(page.getByRole("dialog")).toContainText("Compressing ZIP");
+  expect(
+    await page.evaluate(
+      () => document.documentElement.scrollWidth <= innerWidth,
+    ),
+  ).toBe(true);
+  await page.screenshot({
+    path: ".local/screenshots/batch-progress-en-mobile.png",
+  });
+  offline = true;
+  await expect(page.getByRole("alert")).toContainText("Retrying");
+  offline = false;
+  await expect(page.getByRole("alert")).toHaveCount(0, { timeout: 5000 });
+  missing = true;
+  await expect(page.getByRole("alert")).toContainText("no longer available");
+  await expect(
+    page.getByRole("button", { name: "Start export", exact: true }),
+  ).toBeEnabled();
+});
+
+test("a lost batch-start response reconnects to the worker that was created", async ({
+  page,
+}) => {
+  const library = await (await page.request.get("/api/library")).json();
+  await page.route("**/api/library", (route) =>
+    route.fulfill({
+      json: {
+        ...library,
+        folder: "/synthetic",
+        files: [{ id: "demo", name: "synthetic.c3d", size: 1024 }],
+      },
+    }),
+  );
+  const job = {
+    id: "synthetic-lost-response",
+    folderName: "Synthetic recordings",
+    status: "running",
+    total: 1,
+    completed: 0,
+    succeeded: 0,
+    failed: 0,
+    current: "synthetic.c3d",
+    errors: [],
+    stage: "point",
+    processed: 256,
+    stageTotal: 800,
+    elapsedSeconds: 3,
+    errorCode: null,
+  };
+  let started = false;
+  await page.route("**/api/library/exports", (route) => {
+    if (route.request().method() === "POST") {
+      started = true;
+      return route.abort("timedout");
+    }
+    return route.fulfill({ json: started ? job : null });
+  });
+  await page.route("**/api/library/exports/synthetic-lost-response", (route) =>
+    route.fulfill({ json: job }),
+  );
+  await page.reload();
+  await page.getByRole("button", { name: "批量导出 CSV", exact: true }).click();
+  await page.getByRole("button", { name: "开始导出", exact: true }).click();
+  await expect(page.getByRole("dialog")).toContainText("256 / 800 帧");
+  await expect(
+    page.getByRole("button", { name: "取消导出", exact: true }),
+  ).toBeEnabled();
+});

@@ -227,16 +227,35 @@ test("desktop folder export uses the native download flow", async () => {
   await page.getByRole("button", { name: "批量导出 CSV", exact: true }).click();
   await page.getByRole("button", { name: "开始导出", exact: true }).click();
   await expect(page.getByRole("dialog")).toContainText("成功 1，失败 0");
+  // A reload must reconnect to the backend task without sessionStorage state.
+  await page.reload();
+  await page.getByRole("button", { name: "批量导出 CSV", exact: true }).click();
+  await expect(page.getByRole("dialog")).toContainText("成功 1，失败 0");
   await page.getByRole("link", { name: "下载 ZIP" }).click();
   await expect
     .poll(async () => {
       try {
-        return (await readFile(output)).subarray(0, 2).toString();
+        return (await readFile(output)).subarray(-22, -18).toString("hex");
       } catch {
         return "";
       }
     })
-    .toBe("PK");
+    .toBe("504b0506");
+  execFileSync(path.resolve(".venv/bin/python"), [
+    "-c",
+    `
+import csv, io, json, sys, zipfile
+with zipfile.ZipFile(sys.argv[1]) as archive:
+    assert archive.testzip() is None
+    record = json.loads(archive.read('manifest.json'))['files'][0]
+    assert record['status'] == 'ok'
+    points = list(csv.reader(io.StringIO(archive.read(record['directory']+'/points.csv').decode('utf-8-sig'))))
+    analog = list(csv.reader(io.StringIO(archive.read(record['directory']+'/analog.csv').decode('utf-8-sig'))))
+    assert len(points) == 801 and len(points[0]) == 142
+    assert len(analog) == 8001 and len(analog[0]) == 7
+`,
+    output,
+  ]);
 });
 
 test("native CSV download includes every point and source COM by default", async () => {

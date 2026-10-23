@@ -1,6 +1,7 @@
 """Local, cancellable full-resolution folder exports with bounded memory."""
 
 import atexit
+import errno
 import json
 import re
 import shutil
@@ -47,8 +48,20 @@ class BatchExports:
                 raise HTTPException(409, "A folder export or download is already in progress.")
             if not sources:
                 raise HTTPException(400, "This folder contains no C3D files.")
+            # Allocate before deleting a previous completed result. A full
+            # temporary disk must not leave a ready task with no ZIP behind.
+            try:
+                folder = Path(tempfile.mkdtemp(prefix="c3d-export-"))
+            except OSError as exc:
+                if exc.errno in (errno.ENOSPC, errno.EDQUOT):
+                    raise HTTPException(
+                        507, "Not enough temporary disk space. Free space and retry."
+                    ) from None
+                raise HTTPException(
+                    507, "Cannot create the temporary export folder. Check disk permissions."
+                ) from None
             self.close()
-            self.folder = Path(tempfile.mkdtemp(prefix="c3d-export-"))
+            self.folder = folder
             self.job = dict(
                 id=secrets.token_hex(16),
                 folderName=sources[0].parent.name or "/",
@@ -58,6 +71,11 @@ class BatchExports:
                 succeeded=0,
                 failed=0,
                 current="",
+                stage="reading",
+                processed=0,
+                stageTotal=0,
+                started=time.monotonic(),
+                errorCode=None,
                 errors=[],
                 cancel=threading.Event(),
                 updated=time.monotonic(),
@@ -71,6 +89,15 @@ class BatchExports:
         if job["cancel"].is_set():
             raise Cancelled()
 
+    def current(self):
+        with self.lock:
+            return self.snapshot(self.job["id"]) if self.job else None
+
+    def _progress(self, job, stage, processed, total):
+        self._check(job)
+        with self.lock:
+            job.update(stage=stage, processed=processed, stageTotal=total)
+
     def _run(self, job, folder, sources):
         manifest = {"formatVersion": 1, "timeOrigin": "first frame = 0 seconds", "files": []}
         try:
@@ -80,7 +107,7 @@ class BatchExports:
                 for number, source in enumerate(sources, 1):
                     self._check(job)
                     with self.lock:
-                        job["current"] = source.name
+                        job.update(current=source.name, stage="reading", processed=0, stageTotal=0)
                     entry = {"source": source.name}
                     staging = folder / "staging"
                     staging.mkdir(exist_ok=True)
@@ -102,7 +129,15 @@ class BatchExports:
                             with (staging / name).open(
                                 "w", encoding="utf-8-sig", newline=""
                             ) as stream:
-                                for chunk in acq.csv_rows(kind, list(range(count)), 0, acq.count):
+                                for chunk in acq.csv_rows(
+                                    kind,
+                                    list(range(count)),
+                                    0,
+                                    acq.count,
+                                    progress=lambda done, total: self._progress(
+                                        job, kind, done, total
+                                    ),
+                                ):
                                     self._check(job)
                                     stream.write(chunk)
                             exported.append(name)
@@ -130,7 +165,9 @@ class BatchExports:
                         )
                     except Cancelled:
                         raise
-                    except Exception:
+                    except Exception as exc:
+                        if isinstance(exc, OSError) and exc.errno in (errno.ENOSPC, errno.EDQUOT):
+                            raise
                         # Do not publish exception strings: OS/parser errors may contain
                         # absolute paths or arbitrary source metadata. Sources are untouched.
                         entry.update(
@@ -144,6 +181,9 @@ class BatchExports:
                         # Chunked ZIP writes remain cancellable for very large CSVs.
                         # Archive/storage failures abort the whole job, never masquerade
                         # as a valid recording with a partial CSV in the result.
+                        total_bytes = sum((staging / name).stat().st_size for name in exported)
+                        copied = 0
+                        self._progress(job, "zip", 0, total_bytes)
                         for name in exported:
                             with (
                                 (staging / name).open("rb") as source_csv,
@@ -155,6 +195,8 @@ class BatchExports:
                                     if not chunk:
                                         break
                                     target.write(chunk)
+                                    copied += len(chunk)
+                                    self._progress(job, "zip", copied, total_bytes)
                         with self.lock:
                             job["succeeded"] += 1
                     shutil.rmtree(staging, ignore_errors=True)
@@ -175,6 +217,9 @@ class BatchExports:
                     status="cancelled" if isinstance(exc, Cancelled) else "error",
                     current="",
                     updated=time.monotonic(),
+                    errorCode="diskFull"
+                    if isinstance(exc, OSError) and exc.errno in (errno.ENOSPC, errno.EDQUOT)
+                    else None,
                 )
             shutil.rmtree(folder, ignore_errors=True)
 
@@ -204,7 +249,12 @@ class BatchExports:
 
     def snapshot(self, key):
         with self.lock:
-            return {k: v for k, v in self._get(key).items() if k not in ("cancel", "updated")}
+            job = self._get(key)
+            end = time.monotonic() if job["status"] == "running" else job["updated"]
+            return {
+                **{k: v for k, v in job.items() if k not in ("cancel", "updated", "started")},
+                "elapsedSeconds": max(0, int(end - job["started"])),
+            }
 
     def cancel(self, key):
         with self.lock:
