@@ -34,6 +34,7 @@ jobs:
       - run: python -m venv .venv
       - run: .venv/bin/pip install -r requirements-desktop.txt -r requirements-dev.txt
       - run: npm ci
+      - run: .venv/bin/python -m pytest tests/test_package_privacy.py -q
       - run: npm run desktop:build
       - run: npm run test:desktop
       - run: C3D_TEST_APP="$PWD/release/mac-arm64/C3D Reader.app/Contents/MacOS/C3D Reader" npm run test:desktop

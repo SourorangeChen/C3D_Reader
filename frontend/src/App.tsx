@@ -483,7 +483,7 @@ export default function App() {
           <span>
             C3D <strong>Reader</strong>
           </span>
-          <span className="version">0.2</span>
+          <span className="version">0.2.1</span>
         </div>
         <div className="workspace-name">
           Motion workspace <span className="header-slash">/</span>{" "}

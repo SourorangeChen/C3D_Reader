@@ -33,7 +33,7 @@
 
 ### macOS 桌面应用（推荐）
 
-在 [Releases](https://github.com/SourorangeChen/C3D_Reader/releases) 下载 `C3D-Reader-0.2.0-macOS-arm64.dmg`，双击打开，将 **C3D Reader.app** 拖到旁边的 **Applications（应用程序）** 文件夹，然后从“应用程序”双击启动。安装后可推出磁盘镜像。也提供 ZIP 解压版本。当前构建适用于 **Apple Silicon（M1 / M2 / M3 / M4 等）和 macOS 14+**，Intel Mac 尚未提供安装包。
+在 [Releases](https://github.com/SourorangeChen/C3D_Reader/releases) 下载 `C3D-Reader-0.2.1-macOS-arm64.dmg`，双击打开，将 **C3D Reader.app** 拖到旁边的 **Applications（应用程序）** 文件夹，然后从“应用程序”双击启动。安装后可推出磁盘镜像。也提供 ZIP 解压版本。当前构建适用于 **Apple Silicon（M1 / M2 / M3 / M4 等）和 macOS 14+**，Intel Mac 尚未提供安装包。
 
 桌面版已经包含 Python、读取引擎、Chromium 和前端资源，使用时无需安装 Python / Node.js，也无需联网或先启动网页服务。
 
@@ -97,6 +97,8 @@ python3 run.py --rebuild
 ## 隐私
 
 没有数据上传、遥测或远端分析。浏览器版设置保存在 `~/.config/c3d-reader/settings.json`；桌面版设置和启动日志保存在 `~/Library/Application Support/c3d-reader/`，最近打开记录由 macOS 管理。可用 `C3D_READER_CONFIG_DIR` 改变设置目录。实验文件不会复制到仓库。`.gitignore` 默认排除 C3D、Vicon 校准 / 模型文件、CSV 导出、配置、构建包及本地测试输出。
+
+公开验证统计和演示素材使用 `backend/demo.py` 生成的合成数据。桌面构建在签名前移除依赖的安装记录和本地来源元数据，并检查文件、压缩内容和冻结 Python 模块中的构建机路径、常见凭据格式及不应分发的文件。此检查不能替代人工隐私审查。旧 Git 提交中的历史验证统计不会因更新当前文档而自动消失。
 
 请只将本地服务用于你自己的可信设备。程序没有多用户认证，不用于公开互联网部署。
 

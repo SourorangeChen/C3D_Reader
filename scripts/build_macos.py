@@ -1,5 +1,6 @@
 """Build a self-contained, locally ad-hoc signed Apple Silicon macOS app."""
 
+import argparse
 import hashlib
 import json
 import platform
@@ -9,6 +10,8 @@ import sys
 import sysconfig
 from importlib import metadata
 from pathlib import Path
+
+from package_privacy import check_bundle_privacy, sanitize_runtime_metadata
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -82,6 +85,9 @@ def collect_licenses():
 
 
 def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--output", type=Path, default=ROOT / "release")
+    output = parser.parse_args().output.resolve()
     if sys.platform != "darwin" or platform.machine() != "arm64":
         raise SystemExit("Build this target on an Apple Silicon Mac.")
     npm = shutil.which("npm")
@@ -106,23 +112,30 @@ def main():
         "build/pyinstaller",
         "desktop/service.spec",
     )
+    removed = sanitize_runtime_metadata(ROOT / "build/desktop-service/c3d-service")
+    print(f"Removed {removed} installation-only metadata files before signing.", flush=True)
     # Electron's official installer can be skipped by restrictive npm script policies.
     if not (ROOT / "node_modules/electron/dist/Electron.app").exists():
         run("node", "node_modules/electron/install.js")
     collect_licenses()
-    run(str(ROOT / "node_modules/.bin/electron-builder"), "--mac", "--arm64", "--publish", "never")
-    bundle = ROOT / "release/mac-arm64/C3D Reader.app"
+    run(
+        str(ROOT / "node_modules/.bin/electron-builder"),
+        "--mac", "--arm64", "--publish", "never",
+        f"--config.directories.output={output}",
+    )
+    bundle = output / "mac-arm64/C3D Reader.app"
+    print(f"Package privacy check: {check_bundle_privacy(bundle)}", flush=True)
     run("codesign", "--verify", "--deep", "--strict", str(bundle))
     version = json.loads((ROOT / "package.json").read_text())["version"]
-    archive = ROOT / "release" / f"C3D-Reader-{version}-macOS-arm64.zip"
+    archive = output / f"C3D-Reader-{version}-macOS-arm64.zip"
     run("ditto", "-c", "-k", "--sequesterRsrc", "--keepParent", str(bundle), str(archive))
-    disk_image = ROOT / "release" / f"C3D-Reader-{version}-macOS-arm64.dmg"
+    disk_image = output / f"C3D-Reader-{version}-macOS-arm64.dmg"
     run("hdiutil", "verify", str(disk_image))
     checksums = "".join(
         f"{hashlib.sha256(artifact.read_bytes()).hexdigest()}  {artifact.name}\n"
         for artifact in [disk_image, archive]
     )
-    (ROOT / "release/SHA256SUMS.txt").write_text(checksums)
+    (output / "SHA256SUMS.txt").write_text(checksums)
     print(f"\nApp: {bundle}\nDMG: {disk_image}\nArchive: {archive}", flush=True)
 
 

@@ -1,4 +1,4 @@
-# macOS desktop application — v0.2.0
+# macOS desktop application — v0.2.1
 
 The desktop build embeds the existing workbench in an Electron window and packages the Python service with PyInstaller. End users do not need Python, Node.js, a terminal or an external browser. The current deliverable targets Apple Silicon, macOS 14 and newer. It has an ad-hoc signature; it is not notarized or signed with an Apple Developer ID distribution certificate.
 
@@ -18,14 +18,15 @@ Quitting closes the service, with a bounded forced-stop fallback. A parent-proce
 
 ## Verification on the development Mac
 
-- 23 Python/API regression tests, including authorization, direct file registration and invalid-drop preservation.
+- 25 Python/API/packaging regression tests, including authorization, direct file registration, invalid-drop preservation and package privacy checks.
 - 8 browser regression tests.
 - 5 Electron integration tests, run against both the development launcher and the **packaged app**: native-backed drag/drop, running-app Finder events, native dialog selection, cold launch with a file, invalid-extension handling and child-service shutdown.
-- The packaged Python executable launched from `/tmp` with `PATH=/usr/bin:/bin`, served its bundled frontend, opened a private 644,722,896-byte / 51,065-frame / 296-analog-channel recording and read its final frame. No user recording is included in the release.
-- The packaged app was launched through macOS and a real Vicon acquisition was opened through the native file dialog.
+- The packaged Python executable was tested with the synthetic walking acquisition: 800 point frames, 35 markers and 4 analog channels, generated from `backend/demo.py`. Its bundled frontend, final frame and full-rate CSV export were checked without participant files.
 - `codesign --verify --deep --strict` passed. This verifies local signature consistency, not Developer ID trust or notarization.
 
 The icon is drawn from the existing marker-and-segment brand by `scripts/make_icon.swift`. `scripts/build_macos.py` freezes the service, embeds assets, builds and signs the app, then creates a DMG, ZIP and checksums. The DMG includes an Applications link for drag-to-install and is verified with `hdiutil verify`. Build outputs are ignored by Git; only the standalone application DMG, ZIP and checksum file should be attached to a release. Source `.c3d` files, settings, recent-file state and local logs are excluded.
+
+Before signing, `scripts/package_privacy.py` removes `.dist-info/RECORD` and `direct_url.json`. Runtime package versions, dependency metadata and licenses remain available. The build then checks the signed bundle's regular files, ZIP members and decompressed frozen Python modules for its source/home paths, common credential formats and non-distributable filenames. The check reports package member names without echoing matched private values. Upstream runtime build paths are not personal paths belonging to this project's builder; identifier detection still requires manual review. Use `npm run desktop:build -- --output .local/desktop-build` to choose an isolated output directory.
 
 ## Packaging references
 

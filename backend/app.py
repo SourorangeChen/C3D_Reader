@@ -20,7 +20,7 @@ from .demo import create_demo
 ROOT = Path(__file__).resolve().parents[1]
 CONFIG_DIR = Path(os.environ.get("C3D_READER_CONFIG_DIR", Path.home() / ".config" / "c3d-reader"))
 CONFIG_DIR.mkdir(parents=True, exist_ok=True)
-app = FastAPI(title="C3D Reader", version="0.2.0", docs_url=None, redoc_url=None)
+app = FastAPI(title="C3D Reader", version="0.2.1", docs_url=None, redoc_url=None)
 app.add_middleware(
     TrustedHostMiddleware,
     allowed_hosts=["localhost", "127.0.0.1", "[::1]", "testserver"],
@@ -321,7 +321,7 @@ def export(
 
 @app.get("/api/health")
 def health():
-    return {"status": "ok", "version": "0.2.0"}
+    return {"status": "ok", "version": "0.2.1"}
 
 
 dist = ROOT / "frontend" / "dist"
