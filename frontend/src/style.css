@@ -2512,6 +2512,13 @@ select {
 .rail .icon-button.active {
   background: var(--button-active-bg);
 }
+.icon-button.active:hover:not(:disabled),
+.toolbar-toggles > button.active:hover:not(:disabled),
+.text-toggle.active:hover:not(:disabled) {
+  background: var(--button-active-bg);
+  border-color: var(--focus);
+  color: var(--button-active-text);
+}
 .file-row:hover,
 .channel-row:hover,
 .demo-row:hover {
