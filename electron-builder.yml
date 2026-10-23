@@ -1,0 +1,31 @@
+appId: io.github.sourorangechen.c3dreader
+productName: C3D Reader
+asar: true
+directories:
+  output: release
+files:
+  - desktop/main.cjs
+  - desktop/preload.cjs
+  - package.json
+extraResources:
+  - from: build/desktop-service/c3d-service
+    to: backend
+  - from: build/third-party-licenses
+    to: third-party-licenses
+mac:
+  category: public.app-category.medical
+  minimumSystemVersion: "14.0"
+  icon: desktop/assets/icon.icns
+  target:
+    - target: dir
+      arch: [arm64]
+  identity: "-"
+  entitlements: desktop/entitlements.plist
+  entitlementsInherit: desktop/entitlements.plist
+  fileAssociations:
+    - ext: c3d
+      name: C3D Motion Capture
+      description: C3D biomechanical acquisition
+      role: Viewer
+      rank: Alternate
+      isPackage: false

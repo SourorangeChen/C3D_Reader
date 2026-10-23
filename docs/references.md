@@ -27,3 +27,5 @@ Research used the public website and ordinary source inspection. The installed r
 | Public Sans / IBM Plex Mono   | SIL OFL 1.1        | Locally bundled fonts             |
 
 The packages retain their upstream license files in their installed distributions. Build and test tools have their own upstream licenses. The application source is independently licensed under MIT.
+
+The macOS application additionally bundles Electron (MIT), Chromium's third-party notices, the Python license and runtime/font licenses in `Contents/Resources/third-party-licenses`. PyInstaller's bootloader is distributed under its upstream GPL license with the explicit bootloader exception; its notices are included as well.

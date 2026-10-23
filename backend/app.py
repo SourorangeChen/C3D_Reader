@@ -8,7 +8,7 @@ from pathlib import Path
 from urllib.parse import urlparse
 
 import numpy as np
-from fastapi import FastAPI, HTTPException, Query, Request
+from fastapi import FastAPI, Header, HTTPException, Query, Request
 from fastapi.responses import FileResponse, JSONResponse, Response, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
@@ -20,7 +20,7 @@ from .demo import create_demo
 ROOT = Path(__file__).resolve().parents[1]
 CONFIG_DIR = Path(os.environ.get("C3D_READER_CONFIG_DIR", Path.home() / ".config" / "c3d-reader"))
 CONFIG_DIR.mkdir(parents=True, exist_ok=True)
-app = FastAPI(title="C3D Reader", version="0.1.0", docs_url=None, redoc_url=None)
+app = FastAPI(title="C3D Reader", version="0.2.0", docs_url=None, redoc_url=None)
 app.add_middleware(
     TrustedHostMiddleware,
     allowed_hosts=["localhost", "127.0.0.1", "[::1]", "testserver"],
@@ -121,6 +121,31 @@ def indices_for(acq, kind, ids, maximum=32):
 
 class Folder(BaseModel):
     path: str
+
+
+def require_desktop(token):
+    expected = os.environ.get("C3D_READER_DESKTOP_TOKEN", "")
+    if not expected or not secrets.compare_digest(token or "", expected):
+        raise HTTPException(403, "This operation is available only to the desktop application.")
+
+
+@app.post("/api/desktop/open")
+def desktop_open(file: Folder, x_desktop_token: str = Header(default="")):
+    require_desktop(x_desktop_token)
+    path = Path(file.path).expanduser().resolve()
+    if path.suffix.lower() != ".c3d" or not path.is_file() or path.name.startswith("._"):
+        raise HTTPException(400, "请选择有效的 .c3d 文件。")
+    with cache_lock:
+        key = next((k for k, value in files.items() if value == path), None)
+        key = key or secrets.token_hex(8)
+        files[key] = path
+    # Decode before changing the active folder: an invalid drop must preserve
+    # the previous acquisition and library. Large recordings stay on disk.
+    acquisition = get_acq(key)
+    result = clean_json(dict(id=key, **acquisition.metadata()))
+    library["root"] = str(path.parent)
+    (CONFIG_DIR / "settings.json").write_text(json.dumps({"folder": str(path.parent)}))
+    return dict(acquisition=result, library=list_library())
 
 
 @app.get("/api/library")
@@ -296,7 +321,7 @@ def export(
 
 @app.get("/api/health")
 def health():
-    return {"status": "ok", "version": "0.1.0"}
+    return {"status": "ok", "version": "0.2.0"}
 
 
 dist = ROOT / "frontend" / "dist"

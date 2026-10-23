@@ -21,6 +21,33 @@
   --radius: 5px;
   font-variant-numeric: tabular-nums;
 }
+.file-drop-overlay {
+  position: fixed;
+  inset: 58px 12px 39px;
+  z-index: 30;
+  pointer-events: none;
+  display: grid;
+  place-items: center;
+  background: #171719ed;
+  border: 1px solid var(--accent);
+  border-radius: 5px;
+}
+.file-drop-overlay > div {
+  text-align: center;
+}
+.file-drop-overlay svg {
+  color: var(--accent);
+  margin-bottom: 20px;
+}
+.file-drop-overlay h2 {
+  font-size: 22px;
+  font-weight: 500;
+}
+.file-drop-overlay p {
+  color: var(--muted);
+  margin-top: 13px;
+  font-size: 13px;
+}
 * {
   box-sizing: border-box;
 }
@@ -1037,11 +1064,8 @@ button:hover:not(:disabled) {
   appearance: none;
   border: 0;
   border-radius: 0;
-  background: linear-gradient( /* taste-skill-ignore: hard-stop fill encodes measured playback progress */
-    to right,
-    #8d939f var(--progress),
-    #3b3a42 var(--progress)
-  );
+  /* prettier-ignore */
+  background: linear-gradient(to right, #8d939f var(--progress), #3b3a42 var(--progress)); /* taste-skill-ignore: measured playback progress */
   cursor: pointer;
 }
 .scrubber input[type="range"]::-webkit-slider-thumb {

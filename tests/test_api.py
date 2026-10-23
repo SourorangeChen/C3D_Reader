@@ -104,3 +104,48 @@ def test_invalid_c3d_is_an_actionable_error(client, tmp_path):
     response = client.get(f"/api/files/{listing['files'][0]['id']}")
     assert response.status_code == 422
     assert "Truncated C3D header" in response.json()["detail"]
+
+
+def test_desktop_open_requires_private_token(client, tmp_path, monkeypatch):
+    path = create_demo(tmp_path / "带 空格 walking.C3D")
+    assert client.post("/api/desktop/open", json={"path": str(path)}).status_code == 403
+    monkeypatch.setenv("C3D_READER_DESKTOP_TOKEN", "desktop-test-token")
+    assert (
+        client.post(
+            "/api/desktop/open", json={"path": str(path)}, headers={"X-Desktop-Token": "wrong"}
+        ).status_code
+        == 403
+    )
+    response = client.post(
+        "/api/desktop/open",
+        json={"path": str(path)},
+        headers={"X-Desktop-Token": "desktop-test-token"},
+    )
+    assert response.status_code == 200
+    data = response.json()
+    assert data["acquisition"]["name"] == path.name
+    assert data["acquisition"]["frameCount"] == 800
+    assert data["library"]["folder"] == str(tmp_path)
+    from backend.app import files
+
+    assert files[data["acquisition"]["id"]] == path
+    assert client.get(f"/api/files/{data['acquisition']['id']}/frame/799").status_code == 200
+
+
+def test_bad_desktop_drop_preserves_library(client, tmp_path, monkeypatch):
+    monkeypatch.setenv("C3D_READER_DESKTOP_TOKEN", "desktop-test-token")
+    headers = {"X-Desktop-Token": "desktop-test-token"}
+    before = client.get("/api/library").json()["folder"]
+    (tmp_path / "broken.c3d").write_bytes(b"broken")
+    assert (
+        client.post(
+            "/api/desktop/open", json={"path": str(tmp_path / "broken.c3d")}, headers=headers
+        ).status_code
+        == 422
+    )
+    assert client.get("/api/library").json()["folder"] == before
+    for path in [tmp_path, tmp_path / "missing.c3d", tmp_path / "notes.txt"]:
+        assert (
+            client.post("/api/desktop/open", json={"path": str(path)}, headers=headers).status_code
+            == 400
+        )

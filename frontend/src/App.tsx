@@ -32,6 +32,7 @@ import { Viewer } from "./Viewer";
 import { SignalPlot } from "./SignalPlot";
 import { useFrames } from "./useFrames";
 import { api, formatBytes, isVirtual } from "./types";
+import { desktop } from "./desktop";
 import type {
   Acquisition,
   Library,
@@ -134,6 +135,9 @@ export default function App() {
     () => window.innerWidth >= 1000,
   );
   const loadVersion = useRef(0);
+  const dragDepth = useRef(0);
+  const [dragging, setDragging] = useState(false);
+  const [desktopReady, setDesktopReady] = useState(false);
   const { points, error: frameError } = useFrames(meta, frame);
   const currentPoint =
     selection.kind === "point" ? meta?.points[selection.id] : null;
@@ -143,42 +147,52 @@ export default function App() {
   const selectedUnit = currentPoint?.unit || currentAnalog?.unit || "";
   const clock = meta ? frame / meta.pointRate : 0;
   const lastTime = meta ? (meta.frameCount - 1) / meta.pointRate : 0;
-  const openFile = useCallback(async (id: string) => {
-    const version = ++loadVersion.current;
+  const applyAcquisition = useCallback((data: Acquisition) => {
     setPlaying(false);
-    setLoading("正在读取 C3D…");
     setError("");
-    try {
-      const data = await api<Acquisition>(`/api/files/${id}`);
-      if (version !== loadVersion.current) return;
-      setMeta(data);
-      setFrame(0);
-      setRoi([0, data.frameCount - 1]);
-      setParams(null);
-      setSeries(null);
-      setSeriesError("");
-      setSearch("");
-      setTab("marker");
-      setVirtual(false);
-      setHidden(new Set(data.points.filter(isVirtual).map((p) => p.id)));
-      const preferred =
-        data.points.find((p) => p.label.endsWith("LANK")) ||
-        data.points.find((p) => p.kind === "marker" && !isVirtual(p)) ||
-        data.points[0];
-      setSelection({
-        kind: preferred ? "point" : "analog",
-        id: preferred?.id || 0,
-      });
-      if (window.innerWidth < 1000) setShowLibrary(false);
-    } catch (e) {
-      if (version === loadVersion.current) setError((e as Error).message);
-    } finally {
-      if (version === loadVersion.current) setLoading("");
-    }
+    setMeta(data);
+    setFrame(0);
+    setRoi([0, data.frameCount - 1]);
+    setParams(null);
+    setSeries(null);
+    setSeriesError("");
+    setSearch("");
+    setTab("marker");
+    setVirtual(false);
+    setHidden(new Set(data.points.filter(isVirtual).map((p) => p.id)));
+    const preferred =
+      data.points.find((p) => p.label.endsWith("LANK")) ||
+      data.points.find((p) => p.kind === "marker" && !isVirtual(p)) ||
+      data.points[0];
+    setSelection({
+      kind: preferred ? "point" : "analog",
+      id: preferred?.id || 0,
+    });
+    if (window.innerWidth < 1000) setShowLibrary(false);
   }, []);
+  const openFile = useCallback(
+    async (id: string) => {
+      const version = ++loadVersion.current;
+      setPlaying(false);
+      setLoading("正在读取 C3D…");
+      setError("");
+      try {
+        const data = await api<Acquisition>(`/api/files/${id}`);
+        if (version !== loadVersion.current) return;
+        applyAcquisition(data);
+      } catch (e) {
+        if (version === loadVersion.current) setError((e as Error).message);
+      } finally {
+        if (version === loadVersion.current) setLoading("");
+      }
+    },
+    [applyAcquisition],
+  );
   useEffect(() => {
+    let disposed = false;
     void api<Library>("/api/library")
       .then((data) => {
+        if (disposed) return;
         setLibrary(data);
         setFolder(data.folder);
         const initial =
@@ -186,9 +200,69 @@ export default function App() {
           data.files[0] ||
           data.demo;
         void openFile(initial.id);
+        setDesktopReady(true);
       })
       .catch((e) => setError(e.message));
+    return () => {
+      disposed = true;
+    };
   }, [openFile]);
+  useEffect(() => {
+    if (!desktop || !desktopReady) return;
+    const unsubscribe = desktop.onOpen((payload) => {
+      if (payload.error) {
+        setError(payload.error);
+        setLoading("");
+        return;
+      }
+      if (payload.library) {
+        setLibrary(payload.library);
+        setFolder(payload.library.folder);
+      }
+      if (payload.acquisition) {
+        ++loadVersion.current;
+        setLoading("");
+        setModal(null);
+        applyAcquisition(payload.acquisition);
+      } else if (payload.library?.files.length)
+        void openFile(payload.library.files[0].id);
+    });
+    void desktop.ready().catch((e) => setError(e.message));
+    return unsubscribe;
+  }, [desktopReady, applyAcquisition, openFile]);
+  const openNativeFile = () => {
+    void desktop?.openFile().catch((e) => setError(e.message));
+  };
+  const openFolder = () => {
+    setError("");
+    if (desktop) void desktop.openFolder().catch((e) => setError(e.message));
+    else setModal("folder");
+  };
+  const dropFiles = async (event: React.DragEvent) => {
+    event.preventDefault();
+    dragDepth.current = 0;
+    setDragging(false);
+    const files = [...event.dataTransfer.files];
+    if (!files.length) return;
+    if (files.length !== 1 || !/\.c3d$/i.test(files[0].name)) {
+      setError("请一次拖入一个 .c3d 文件。");
+      return;
+    }
+    if (!desktop) {
+      setError(
+        "直接拖入文件请使用 macOS 桌面版；浏览器版可通过“打开文件夹”读取。",
+      );
+      return;
+    }
+    setLoading("正在打开拖入的 C3D…");
+    try {
+      await desktop.openDroppedFile(files[0]);
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setLoading("");
+    }
+  };
   useEffect(() => {
     if (!meta) return;
     const controller = new AbortController();
@@ -365,14 +439,51 @@ export default function App() {
     setPlaying(false);
   };
   return (
-    <div className="app" data-theme="dark">
+    <div
+      className="app"
+      data-theme="dark"
+      onDragEnter={(event) => {
+        if (event.dataTransfer.types.includes("Files")) {
+          event.preventDefault();
+          dragDepth.current++;
+          setDragging(true);
+        }
+      }}
+      onDragOver={(event) => {
+        if (event.dataTransfer.types.includes("Files")) {
+          event.preventDefault();
+          event.dataTransfer.dropEffect = "copy";
+        }
+      }}
+      onDragLeave={(event) => {
+        event.preventDefault();
+        if (--dragDepth.current <= 0) {
+          dragDepth.current = 0;
+          setDragging(false);
+        }
+      }}
+      onDrop={dropFiles}
+    >
+      {dragging && (
+        <div className="file-drop-overlay" role="status">
+          <div>
+            <File size={34} />
+            <h2>松开以打开 C3D 文件</h2>
+            <p>
+              {desktop
+                ? "直接读取本机文件，支持大型采集"
+                : "拖放打开功能适用于 macOS 桌面版"}
+            </p>
+          </div>
+        </div>
+      )}
       <header className="app-header">
         <div className="brand">
           <Mark />
           <span>
             C3D <strong>Reader</strong>
           </span>
-          <span className="version">0.1</span>
+          <span className="version">0.2</span>
         </div>
         <div className="workspace-name">
           Motion workspace <span className="header-slash">/</span>{" "}
@@ -381,15 +492,15 @@ export default function App() {
         <div className="header-actions">
           <span className="local-status">
             <span />
-            本地运行
+            {desktop ? "macOS 桌面版" : "本地运行"}
           </span>
-          <button
-            className="button"
-            onClick={() => {
-              setError("");
-              setModal("folder");
-            }}
-          >
+          {desktop && (
+            <button className="button" onClick={openNativeFile}>
+              <File size={15} />
+              打开 C3D
+            </button>
+          )}
+          <button className="button" onClick={openFolder}>
             <FolderOpen size={15} />
             打开文件夹
           </button>
@@ -465,7 +576,7 @@ export default function App() {
           <button
             className="folder-label"
             title={library?.folder || "未选择文件夹"}
-            onClick={() => setModal("folder")}
+            onClick={openFolder}
           >
             <FolderOpen size={14} />
             <span>

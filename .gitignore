@@ -18,3 +18,5 @@ test-results/
 playwright-report/
 .local/
 *.log
+build/
+release/

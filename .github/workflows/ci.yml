@@ -3,6 +3,8 @@ on: [push, pull_request]
 jobs:
   verify:
     runs-on: ubuntu-latest
+    env:
+      ELECTRON_SKIP_BINARY_DOWNLOAD: "1"
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -18,3 +20,26 @@ jobs:
       - run: npm run build
       - run: npx playwright install --with-deps chromium
       - run: npm test
+  macos-desktop:
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: npm
+      - run: python -m venv .venv
+      - run: .venv/bin/pip install -r requirements-desktop.txt -r requirements-dev.txt
+      - run: npm ci
+      - run: npm run desktop:build
+      - run: npm run test:desktop
+      - run: C3D_TEST_APP="$PWD/release/mac-arm64/C3D Reader.app/Contents/MacOS/C3D Reader" npm run test:desktop
+      - uses: actions/upload-artifact@v4
+        with:
+          name: C3D-Reader-macOS-arm64
+          path: |
+            release/*.zip
+            release/SHA256SUMS.txt
