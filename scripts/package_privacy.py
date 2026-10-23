@@ -4,6 +4,7 @@ This checks the builder's own source/home paths, not every possible identifier.
 It does not import or execute the packaged application or its embedded modules.
 """
 
+import os
 import re
 import zipfile
 from pathlib import Path
@@ -40,7 +41,18 @@ def check_bundle_privacy(bundle, forbidden_roots=None):
     Upstream runtime build paths unrelated to this builder are outside this gate.
     """
     bundle = Path(bundle)
-    roots = forbidden_roots if forbidden_roots is not None else [ROOT, Path.home()]
+    if forbidden_roots is not None:
+        roots = forbidden_roots
+    else:
+        roots = [ROOT]
+        home = Path.home()
+        # Hosted wheels can contain the same generic account used by GitHub CI.
+        # Always reject this project's workspace; exempt only that anonymous home.
+        anonymous_ci_home = os.environ.get("GITHUB_ACTIONS") == "true" and str(home) in {
+            "/Users/runner", "/home/runner",
+        }
+        if not anonymous_ci_home:
+            roots.append(home)
     needles = {
         str(root).rstrip("/").encode(encoding)
         for root in roots

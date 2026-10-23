@@ -18,7 +18,7 @@ Quitting closes the service, with a bounded forced-stop fallback. A parent-proce
 
 ## Verification on the development Mac
 
-- 25 Python/API/packaging regression tests, including authorization, direct file registration, invalid-drop preservation and package privacy checks.
+- 26 Python/API/packaging regression tests, including authorization, direct file registration, invalid-drop preservation and package privacy checks.
 - 8 browser regression tests.
 - 5 Electron integration tests, run against both the development launcher and the **packaged app**: native-backed drag/drop, running-app Finder events, native dialog selection, cold launch with a file, invalid-extension handling and child-service shutdown.
 - The packaged Python executable was tested with the synthetic walking acquisition: 800 point frames, 35 markers and 4 analog channels, generated from `backend/demo.py`. Its bundled frontend, final frame and full-rate CSV export were checked without participant files.
@@ -26,7 +26,7 @@ Quitting closes the service, with a bounded forced-stop fallback. A parent-proce
 
 The icon is drawn from the existing marker-and-segment brand by `scripts/make_icon.swift`. `scripts/build_macos.py` freezes the service, embeds assets, builds and signs the app, then creates a DMG, ZIP and checksums. The DMG includes an Applications link for drag-to-install and is verified with `hdiutil verify`. Build outputs are ignored by Git; only the standalone application DMG, ZIP and checksum file should be attached to a release. Source `.c3d` files, settings, recent-file state and local logs are excluded.
 
-Before signing, `scripts/package_privacy.py` removes `.dist-info/RECORD` and `direct_url.json`. Runtime package versions, dependency metadata and licenses remain available. The build then checks the signed bundle's regular files, ZIP members and decompressed frozen Python modules for its source/home paths, common credential formats and non-distributable filenames. The check reports package member names without echoing matched private values. Upstream runtime build paths are not personal paths belonging to this project's builder; identifier detection still requires manual review. Use `npm run desktop:build -- --output .local/desktop-build` to choose an isolated output directory.
+Before signing, `scripts/package_privacy.py` removes `.dist-info/RECORD` and `direct_url.json`. Runtime package versions, dependency metadata and licenses remain available. The build then checks the signed bundle's regular files, ZIP members and decompressed frozen Python modules for its source/home paths, common credential formats and non-distributable filenames. The check reports package member names without echoing matched private values. On GitHub Actions, the generic `/Users/runner` or `/home/runner` home prefix is exempt because upstream wheels can contain that same anonymous account; this project's full workspace is always blocked. Personal build homes remain blocked outside that exception. Upstream runtime build paths are not personal paths belonging to this project's builder; identifier detection still requires manual review. Use `npm run desktop:build -- --output .local/desktop-build` to choose an isolated output directory.
 
 ## Packaging references
 
