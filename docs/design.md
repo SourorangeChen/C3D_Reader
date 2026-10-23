@@ -10,17 +10,18 @@
 
 - Preserve the three working regions, navigation rail, timeline and draggable pane geometry. Refine surfaces and controls within those regions.
 - Keep the existing Public Sans interface font and IBM Plex Mono for numeric values, frame/time readouts and technical identifiers. Most working labels use 12–13 px; titles use weight and size to establish hierarchy.
-- Keep blue as the data and selection accent. Neutral surfaces carry structure; plots retain distinct X/Y/Z colors, reused in coordinate readouts. 3D markers, trails and legends use the same theme tokens as the plots.
+- Use blue for primary actions and selected toggles, as requested by the user, alongside its existing data accent role. Ordinary action buttons use neutral fills and visible outlines. Neutral surfaces carry structure; plots retain distinct X/Y/Z colors, reused in coordinate readouts. 3D markers, trails and legends use the same theme tokens as the plots.
 
 - 保留三块工作区域、导航栏、时间轴及可拖动尺寸，在现有区域内优化表面与控件。
 - 延续 Public Sans 界面字体和 IBM Plex Mono 数值字体。常用文字为 12–13 px；数值、帧号、时间和技术标识保持等宽，标题通过字号及字重建立层次。
-- 延续蓝色数据与选中强调色，用中性色区分区域；XYZ 曲线及坐标读数使用对应颜色，3D 标记点、轨迹与图例读取相同的主题变量。
+- 按用户要求，以蓝色强调主要操作和已开启的开关，同时延续数据中的蓝色；普通操作按钮使用中性填充与清晰轮廓，用中性色区分区域。XYZ 曲线及坐标读数使用对应颜色，3D 标记点、轨迹与图例读取相同的主题变量。
 
 ## Deliberate exceptions / 有意保留的细节
 
 - **Dense scientific labels:** 11 px remains appropriate for compact units, ticks, metadata and secondary hints. Preserve room for the data view; do not reduce primary controls to that size merely for uniformity.
 - **Numeric monospace:** repeated monospace text is functional here. Stable character widths make rapidly changing coordinates and time readouts easier to compare.
 - **Overlay-only shadows:** shadows distinguish dialogs and temporary side panels above the workspace. Permanent panels use surface tone and separators rather than elevation.
+- **Visible button outlines:** stronger outlines and filled buttons are an explicit user preference. Opening, exporting, playback and confirmation use blue primary controls; ordinary tools use neutral controls. Keep selected toggles visibly selected on hover. This exception applies to action controls, not file rows, channel rows or navigation tabs.
 - **Inspector section labels and missing values:** short labels identify functional groups; em dashes denote unavailable scientific values. Neither is decorative editorial copy.
 - **Measured progress:** the timeline's linear gradient encodes playback position; it is a data indicator rather than decorative color treatment.
 - These are scoped rationales for design-lint warnings, not blanket exemptions. Focus contrast, readable text, unclipped controls and reduced-motion preferences still apply.
@@ -28,6 +29,7 @@
 - **科研信息密度：** 单位、刻度、元数据和次要提示保留 11 px，为数据视图留出空间；常用控件不为追求一致而缩小。
 - **等宽数值：** 坐标和时间不断变化，稳定字符宽度有助于核对，因此重复使用等宽字体具有功能意义。
 - **仅浮层使用阴影：** 弹窗与临时侧面板用阴影表达覆盖关系；常驻面板用底色与分隔线区分。
+- **清晰按钮轮廓：** 用户明确要求按钮更明显，因此为操作控件增加完整边框与填充；打开、导出、播放和确认采用蓝色主按钮，普通工具采用中性色，已开启的开关在悬停时仍保留选中提示。此规则适用于操作控件，不扩展到文件行、通道行或导航标签页。
 - **检查器分组与缺失值：** 小标题标识功能分组，破折号表示不可用的科学数据，均有实际含义。
 - **进度渐变：** 时间轴渐变用于表达实际播放位置，不作为装饰。
 - 上述说明仅解释相应设计检查项；键盘焦点对比、文字可读性、控件完整显示与减少动态效果设置仍需满足。

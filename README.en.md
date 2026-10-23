@@ -36,7 +36,7 @@ Recorded from the real interface using the built-in synthetic walking acquisitio
 
 ### macOS desktop app (recommended)
 
-Download `C3D-Reader-0.3.3-macOS-arm64.dmg` from [Releases](https://github.com/SourorangeChen/C3D_Reader/releases). Double-click the disk image, drag **C3D Reader.app** onto the **Applications** shortcut, then launch it from Applications. Eject the disk image after installation. A ZIP archive is also available. The current build requires **Apple Silicon (M1 / M2 / M3 / M4 and later) and macOS 14+**. An Intel Mac build is not available.
+Download `C3D-Reader-0.3.4-macOS-arm64.dmg` from [Releases](https://github.com/SourorangeChen/C3D_Reader/releases). Double-click the disk image, drag **C3D Reader.app** onto the **Applications** shortcut, then launch it from Applications. Eject the disk image after installation. A ZIP archive is also available. The current build requires **Apple Silicon (M1 / M2 / M3 / M4 and later) and macOS 14+**. An Intel Mac build is not available.
 
 The desktop app bundles Python, the reading engine, Chromium and frontend assets. You do not need to install Python or Node.js, connect to the internet, or start a web service yourself.
 

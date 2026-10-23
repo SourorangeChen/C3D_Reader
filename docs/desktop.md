@@ -1,4 +1,4 @@
-# macOS desktop application — v0.3.3
+# macOS desktop application — v0.3.4
 
 The desktop build embeds the existing workbench in an Electron window and packages the Python service with PyInstaller. End users do not need Python, Node.js, a terminal or an external browser. The current deliverable targets Apple Silicon, macOS 14 and newer. It has an ad-hoc signature; it is not notarized or signed with an Apple Developer ID distribution certificate.
 

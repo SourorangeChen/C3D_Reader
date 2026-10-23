@@ -550,12 +550,15 @@ export default function App() {
             {desktop ? t("macOS 桌面版") : t("本地运行")}
           </span>
           {desktop && (
-            <button className="button" onClick={openNativeFile}>
+            <button className="button primary" onClick={openNativeFile}>
               <File size={15} />
               {t("打开 C3D")}
             </button>
           )}
-          <button className="button" onClick={openFolder}>
+          <button
+            className={`button${desktop ? "" : " primary"}`}
+            onClick={openFolder}
+          >
             <FolderOpen size={15} />
             {t("打开文件夹")}
           </button>
@@ -838,7 +841,7 @@ export default function App() {
               </h1>
             </div>
             <button
-              className="button export-button"
+              className="button primary export-button"
               disabled={!meta}
               onClick={() => setModal("export")}
             >

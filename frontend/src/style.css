@@ -44,6 +44,16 @@
   --scene-line: #b0b0bd;
   --selection-bg: #375a83;
   --selection-ink: #ffffff;
+  --button-bg: #303037;
+  --button-hover: #404049;
+  --button-pressed: #25252b;
+  --button-border: #7b7b86;
+  --button-active-bg: #243c58;
+  --button-active-text: #a8d0ff;
+  --action-bg: #86b9fa;
+  --action-hover: #a2cafa;
+  --action-pressed: #6ba5ee;
+  --action-ink: #142337;
 }
 .file-drop-overlay {
   position: fixed;
@@ -244,21 +254,27 @@ button:hover:not(:disabled) {
   padding: 0 11px;
   font-size: 12px;
   white-space: nowrap;
-  background: var(--chrome);
-  border-color: var(--border);
-  font-weight: 500;
+  background: var(--button-bg);
+  border-color: var(--button-border);
+  font-weight: 600;
 }
-.button:hover {
-  background: var(--hover);
+.button:hover:not(:disabled) {
+  background: var(--button-hover);
 }
 .button.primary {
-  background: var(--inverse-surface);
-  border-color: var(--inverse-surface);
-  color: var(--inverse-text);
+  background: var(--action-bg);
+  border-color: var(--action-bg);
+  color: var(--action-ink);
 }
-.button.primary:hover {
-  background: var(--inverse-surface);
-  color: var(--inverse-text);
+.button.primary:hover:not(:disabled) {
+  background: var(--action-hover);
+  border-color: var(--action-hover);
+  color: var(--action-ink);
+}
+.button.primary:active:not(:disabled) {
+  background: var(--action-pressed);
+  border-color: var(--action-pressed);
+  color: var(--action-ink);
 }
 .icon-button {
   width: 30px;
@@ -268,23 +284,21 @@ button:hover:not(:disabled) {
   align-items: center;
   justify-content: center;
   border-radius: 6px;
-  color: var(--muted);
+  color: var(--text-soft);
   position: relative;
+  border: 1px solid var(--button-border);
+  background: var(--button-bg);
 }
-.icon-button:hover {
-  background: var(--hover);
+.icon-button:hover:not(:disabled) {
+  background: var(--button-hover);
 }
 .icon-button.active {
-  color: var(--text);
+  color: var(--button-active-text);
+  background: var(--button-active-bg);
+  border-color: var(--accent);
 }
 .icon-button.active:after {
-  content: "";
-  position: absolute;
-  bottom: 0;
-  left: 7px;
-  right: 7px;
-  height: 1px;
-  background: var(--accent);
+  content: none;
 }
 /* Full-width workstation: 50px rail + 248px acquisition tree + fluid scene + 232px inspector. */
 .app-body {
@@ -711,45 +725,45 @@ button:hover:not(:disabled) {
   color: var(--muted);
 }
 .toolbar-group select {
-  border: 0;
-  background: none;
-  padding: 0 2px;
+  border: 1px solid var(--button-border);
+  background: var(--button-bg);
+  padding: 0 5px;
   font-size: 12px;
   height: 28px;
 }
 .toolbar-toggles {
   display: flex;
   align-items: center;
-  gap: 13px;
+  gap: 5px;
 }
 .toolbar-toggles > button:not(.icon-button) {
-  height: 37px;
-  padding: 0;
+  height: 28px;
+  padding: 0 7px;
   font-size: 12px;
-  color: var(--muted);
+  font-weight: 500;
+  color: var(--text-soft);
+  border: 1px solid var(--button-border);
+  border-radius: var(--radius);
+  background: var(--button-bg);
   position: relative;
 }
 .toolbar-toggles > button.active {
-  color: var(--text);
+  color: var(--button-active-text);
+  background: var(--button-active-bg);
+  border-color: var(--accent);
 }
 .toolbar-toggles > button.active:after {
-  content: "";
-  position: absolute;
-  height: 1px;
-  bottom: 0;
-  background: var(--accent);
-  left: 0;
-  right: 0;
+  content: none;
 }
 .toolbar-toggles select {
   font-size: 11px;
-  border: 0;
+  border: 1px solid var(--button-border);
   padding: 0 3px;
-  background: none;
+  background: var(--button-bg);
 }
 .toolbar-toggles .icon-button {
-  width: 21px;
-  height: 25px;
+  width: 26px;
+  height: 28px;
 }
 .viewer-shell {
   position: relative;
@@ -825,7 +839,7 @@ button:hover:not(:disabled) {
   gap: 3px;
 }
 .view-actions button {
-  background: var(--surface);
+  background: var(--button-bg);
   width: 26px;
   height: 26px;
 }
@@ -914,20 +928,26 @@ button:hover:not(:disabled) {
 .axis-controls {
   display: flex;
   align-items: center;
-  gap: 11px;
+  gap: 5px;
   margin-left: 12px;
 }
 .axis-controls button {
   display: flex;
   align-items: center;
   gap: 5px;
-  padding: 2px 0;
+  padding: 3px 6px;
+  min-height: 26px;
+  border: 1px solid var(--button-border);
+  border-radius: 5px;
+  background: var(--button-bg);
   color: var(--muted);
   font-size: 12px;
   opacity: 1;
 }
 .axis-controls button.active {
   opacity: 1;
+  color: var(--text);
+  border-color: var(--axis-color);
 }
 .axis-controls i {
   display: block;
@@ -1000,18 +1020,22 @@ button:hover:not(:disabled) {
   align-items: center;
   justify-content: center;
   border-radius: 6px;
-  background: var(--inverse-surface);
-  color: var(--inverse-text);
+  background: var(--action-bg);
+  color: var(--action-ink);
   margin: 0 4px;
 }
 .play-button:hover:not(:disabled) {
-  color: var(--inverse-text);
-  background: var(--inverse-surface);
+  color: var(--action-ink);
+  background: var(--action-hover);
+}
+.play-button:active:not(:disabled) {
+  color: var(--action-ink);
+  background: var(--action-pressed);
 }
 .transport select {
   font-size: 11px;
-  border: 0;
-  background: none;
+  border: 1px solid var(--button-border);
+  background: var(--button-bg);
   margin-left: 6px;
   width: 54px;
   padding: 0 3px;
@@ -1019,16 +1043,22 @@ button:hover:not(:disabled) {
 .text-toggle {
   font-size: 11px;
   color: var(--muted);
-  padding: 4px 0;
+  padding: 4px 7px;
+  min-height: 28px;
+  border: 1px solid var(--button-border);
+  border-radius: var(--radius);
+  background: var(--button-bg);
   position: relative;
   white-space: nowrap;
 }
 .text-toggle.active {
-  color: var(--text-soft);
+  color: var(--button-active-text);
+  background: var(--button-active-bg);
+  border-color: var(--accent);
 }
 .text-toggle.active:after {
   position: absolute;
-  content: "";
+  content: none;
   bottom: 0;
   left: 0;
   right: 0;
@@ -1274,13 +1304,18 @@ button:hover:not(:disabled) {
   background: var(--surface);
 }
 .roi-actions {
-  display: flex;
-  justify-content: space-between;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 5px;
   margin: 10px 0 7px;
 }
 .roi-actions button {
-  padding: 0;
+  padding: 5px 4px;
+  min-height: 28px;
+  border: 1px solid var(--button-border);
+  border-radius: var(--radius);
+  background: var(--button-bg);
+  line-height: 1.4;
   font-size: 12px;
   color: var(--text-soft);
 }
@@ -1291,8 +1326,13 @@ button:hover:not(:disabled) {
 }
 .reset-roi {
   font-size: 12px;
-  text-decoration: underline;
-  text-underline-offset: 4px;
+  width: 100%;
+  min-height: 28px;
+  padding: 5px 4px;
+  border: 1px solid var(--button-border);
+  border-radius: var(--radius);
+  background: var(--button-bg);
+  color: var(--text-soft);
 }
 .info-note {
   font-size: 11px;
@@ -1843,11 +1883,12 @@ button:hover:not(:disabled) {
     padding: 0 8px;
   }
   .toolbar-toggles {
-    gap: 8px;
+    gap: 4px;
   }
   .toolbar-toggles > button:not(.icon-button) {
     font-size: 11px;
-    height: 34px;
+    height: 26px;
+    padding-inline: 5px;
   }
   .toolbar-group {
     gap: 1px;
@@ -2137,6 +2178,16 @@ button:hover:not(:disabled) {
   --scene-line: #606d80;
   --selection-bg: #c6dcf6;
   --selection-ink: #183654;
+  --button-bg: #ffffff;
+  --button-hover: #e4eaf2;
+  --button-pressed: #d8e0eb;
+  --button-border: #828d9d;
+  --button-active-bg: #dceafa;
+  --button-active-text: #164d87;
+  --action-bg: #2268b5;
+  --action-hover: #1b5799;
+  --action-pressed: #16487e;
+  --action-ink: #ffffff;
 }
 .settings-row {
   display: flex;
@@ -2171,11 +2222,12 @@ button:hover:not(:disabled) {
   border: 1px solid var(--control);
   border-radius: var(--radius);
   font-size: 12px;
-  background: var(--chrome);
-  border-color: var(--border);
+  background: var(--button-bg);
+  border-color: var(--button-border);
+  font-weight: 600;
 }
 .batch-export-button:hover:not(:disabled) {
-  background: var(--hover);
+  background: var(--button-hover);
 }
 .batch-progress {
   display: grid;
@@ -2415,7 +2467,7 @@ button:hover:not(:disabled) {
   overflow-wrap: anywhere;
 }
 
-/* Shared interaction states: color is reserved for data, selection and focus. */
+/* Shared interaction states keep actions and toggles distinct from data rows. */
 ::selection {
   background: var(--selection-bg);
   color: var(--selection-ink);
@@ -2431,19 +2483,34 @@ select {
     border-color 120ms ease-out,
     color 120ms ease-out;
 }
-.button:hover:not(:disabled),
-.batch-export-button:hover:not(:disabled) {
-  border-color: var(--control);
+.button:hover:not(:disabled):not(.primary),
+.batch-export-button:hover:not(:disabled),
+.icon-button:hover:not(:disabled) {
+  border-color: var(--text-soft);
+}
+.toolbar-toggles > button:hover:not(:disabled),
+.axis-controls button:hover:not(:disabled),
+.text-toggle:hover:not(:disabled),
+.roi-actions button:hover:not(:disabled),
+.reset-roi:hover:not(:disabled) {
+  background: var(--button-hover);
+  border-color: var(--text-soft);
 }
 .button:active:not(:disabled):not(.primary),
-.icon-button:active:not(:disabled) {
-  background: var(--selected);
+.icon-button:active:not(:disabled),
+.batch-export-button:active:not(:disabled),
+.toolbar-toggles > button:active:not(:disabled),
+.axis-controls button:active:not(:disabled),
+.text-toggle:active:not(:disabled),
+.roi-actions button:active:not(:disabled),
+.reset-roi:active:not(:disabled) {
+  background: var(--button-pressed);
 }
 .panel-heading h2 {
   font-weight: 600;
 }
 .rail .icon-button.active {
-  background: var(--raised);
+  background: var(--button-active-bg);
 }
 .file-row:hover,
 .channel-row:hover,
