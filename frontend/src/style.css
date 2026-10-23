@@ -1037,7 +1037,7 @@ button:hover:not(:disabled) {
   appearance: none;
   border: 0;
   border-radius: 0;
-  background: linear-gradient(
+  background: linear-gradient( /* taste-skill-ignore: hard-stop fill encodes measured playback progress */
     to right,
     #8d939f var(--progress),
     #3b3a42 var(--progress)
