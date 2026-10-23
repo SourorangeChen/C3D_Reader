@@ -26,7 +26,7 @@ The main CSV dialog now defaults to all point channels and the full acquisition.
 
 ## Verification on the development Mac
 
-- 42 Python/API/packaging regression tests, including authorization, direct file registration, invalid-drop preservation and package privacy checks.
+- 44 Python/API/packaging regression tests, including authorization, direct file registration, invalid-drop preservation and package privacy checks.
 - 14 browser regression tests.
 - 8 Electron integration tests, run against both the development launcher and the **packaged app**: native-backed drag/drop, running-app Finder events, native dialog selection, cold launch with a file, invalid-extension handling child-service shutdown, native Settings and preference persistence across app restarts / changing ports, native batch ZIP downloads, and full-point CSV downloads including source COM.
 - The packaged Python executable was tested with the synthetic walking acquisition: 800 point frames, 35 markers and 4 analog channels, generated from `backend/demo.py`. Its bundled frontend, final frame and full-rate CSV export were checked without participant files.

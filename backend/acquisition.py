@@ -20,7 +20,7 @@ def point_role(label):
     Vicon subject prefixes are retained in labels/exports. Exact normalized
     suffixes avoid matching unrelated markers or segment-specific COM labels.
     """
-    name = re.sub(r"[^a-z]", "", label.rsplit(":", 1)[-1].lower())
+    name = re.sub(r"[\s_-]+", "", label.rsplit(":", 1)[-1].strip().lower())
     if name in ("centreofmass", "centerofmass", "com"):
         return "centerOfMass"
     if name in ("centreofmassfloor", "centerofmassfloor", "comfloor"):

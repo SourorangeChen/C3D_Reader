@@ -22,6 +22,8 @@ from backend.demo import create_demo
         ("LThighCOM", None),
         ("COMVelocity", None),
         ("CompanyMarker", None),
+        ("COM1", None),
+        ("COM2Floor", None),
     ],
 )
 def test_source_com_label_recognition(label, role):
