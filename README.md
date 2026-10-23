@@ -1,10 +1,10 @@
 # C3D Reader
 
-A local motion capture workspace inspired by [Mokka](https://biomechanical-toolkit.github.io/mokka/). Open C3D acquisitions, inspect 3D markers and synchronized signals, navigate gait events, and export full-resolution CSV data.
+[简体中文](README.md) | [English](README.en.md)
 
-一款本地运行的 C3D 动作数据读取工具，面向 Vicon 运动捕捉、步态分析与生物力学数据检查。界面为简体中文，提供 macOS 桌面应用和本地浏览器两种运行方式，数据直接从本机磁盘读取。
+一款受 [Mokka](https://biomechanical-toolkit.github.io/mokka/) 启发、本地运行的 C3D 动作数据读取工具，面向 Vicon 运动捕捉、步态分析与生物力学数据检查。界面为简体中文，提供 macOS 桌面应用和本地浏览器两种运行方式，数据直接从本机磁盘读取。
 
-![C3D Reader with a synthetic walking acquisition](docs/screenshot.png)
+![C3D Reader 合成步行数据界面](docs/screenshot.png)
 
 ## 功能
 
@@ -35,7 +35,7 @@ A local motion capture workspace inspired by [Mokka](https://biomechanical-toolk
 
 当前构建使用 **ad-hoc 签名，尚未通过 Apple Developer ID 签名和公证**。本机构建可直接运行；从互联网下载到另一台 Mac 后可能被 Gatekeeper 阻止。仅在信任本项目的情况下，通过 macOS“隐私与安全性”中的“仍要打开”完成系统确认。不要关闭系统安全检查。
 
-![C3D Reader macOS desktop application with synthetic data](docs/desktop.jpg)
+![C3D Reader macOS 桌面应用合成数据界面](docs/desktop.jpg)
 
 ### 从源码运行浏览器版
 
@@ -129,6 +129,6 @@ C3D_TEST_APP="$PWD/release/mac-arm64/C3D Reader.app/Contents/MacOS/C3D Reader" n
 
 输出目录为 `release/mac-arm64/C3D Reader.app`，DMG、ZIP 和 SHA-256 校验值也位于 `release/`。前端通过 Electron 的隔离 preload 获取原生文件路径，Python 引擎由 PyInstaller 打包；桌面专用打开接口使用每次启动生成的私密令牌，服务绑定随机本机端口。[桌面实现与验证](docs/desktop.md) 记录了构建边界和测试结果。
 
-## License
+## 许可证
 
-[MIT](LICENSE). Independent implementation; not affiliated with the Mokka or Biomechanical ToolKit projects.
+[MIT](LICENSE)。本项目为独立实现，与 Mokka 或 Biomechanical ToolKit 项目无隶属关系。
