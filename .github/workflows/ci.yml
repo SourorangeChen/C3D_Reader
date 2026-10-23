@@ -41,5 +41,6 @@ jobs:
         with:
           name: C3D-Reader-macOS-arm64
           path: |
+            release/*.dmg
             release/*.zip
             release/SHA256SUMS.txt

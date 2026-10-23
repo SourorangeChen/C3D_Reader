@@ -23,7 +23,7 @@ A local motion capture workspace inspired by [Mokka](https://biomechanical-toolk
 
 ### macOS 桌面应用（推荐）
 
-在 [Releases](https://github.com/SourorangeChen/C3D_Reader/releases) 下载 `C3D-Reader-0.2.0-macOS-arm64.zip`，解压后将 **C3D Reader.app** 移到“应用程序”文件夹，双击启动。当前构建适用于 **Apple Silicon（M1 / M2 / M3 / M4 等）和 macOS 14+**，Intel Mac 尚未提供安装包。
+在 [Releases](https://github.com/SourorangeChen/C3D_Reader/releases) 下载 `C3D-Reader-0.2.0-macOS-arm64.dmg`，双击打开，将 **C3D Reader.app** 拖到旁边的 **Applications（应用程序）** 文件夹，然后从“应用程序”双击启动。安装后可推出磁盘镜像。也提供 ZIP 解压版本。当前构建适用于 **Apple Silicon（M1 / M2 / M3 / M4 等）和 macOS 14+**，Intel Mac 尚未提供安装包。
 
 桌面版已经包含 Python、读取引擎、Chromium 和前端资源，使用时无需安装 Python / Node.js，也无需联网或先启动网页服务。
 
@@ -127,7 +127,7 @@ npm run test:desktop
 C3D_TEST_APP="$PWD/release/mac-arm64/C3D Reader.app/Contents/MacOS/C3D Reader" npm run test:desktop
 ```
 
-输出目录为 `release/mac-arm64/C3D Reader.app`，ZIP 和 SHA-256 校验值也位于 `release/`。前端通过 Electron 的隔离 preload 获取原生文件路径，Python 引擎由 PyInstaller 打包；桌面专用打开接口使用每次启动生成的私密令牌，服务绑定随机本机端口。[桌面实现与验证](docs/desktop.md) 记录了构建边界和测试结果。
+输出目录为 `release/mac-arm64/C3D Reader.app`，DMG、ZIP 和 SHA-256 校验值也位于 `release/`。前端通过 Electron 的隔离 preload 获取原生文件路径，Python 引擎由 PyInstaller 打包；桌面专用打开接口使用每次启动生成的私密令牌，服务绑定随机本机端口。[桌面实现与验证](docs/desktop.md) 记录了构建边界和测试结果。
 
 ## License
 

@@ -110,15 +110,20 @@ def main():
     if not (ROOT / "node_modules/electron/dist/Electron.app").exists():
         run("node", "node_modules/electron/install.js")
     collect_licenses()
-    run(str(ROOT / "node_modules/.bin/electron-builder"), "--mac", "--arm64", "--dir")
+    run(str(ROOT / "node_modules/.bin/electron-builder"), "--mac", "--arm64", "--publish", "never")
     bundle = ROOT / "release/mac-arm64/C3D Reader.app"
     run("codesign", "--verify", "--deep", "--strict", str(bundle))
     version = json.loads((ROOT / "package.json").read_text())["version"]
     archive = ROOT / "release" / f"C3D-Reader-{version}-macOS-arm64.zip"
     run("ditto", "-c", "-k", "--sequesterRsrc", "--keepParent", str(bundle), str(archive))
-    digest = hashlib.sha256(archive.read_bytes()).hexdigest()
-    (ROOT / "release/SHA256SUMS.txt").write_text(f"{digest}  {archive.name}\n")
-    print(f"\nApp: {bundle}\nArchive: {archive}", flush=True)
+    disk_image = ROOT / "release" / f"C3D-Reader-{version}-macOS-arm64.dmg"
+    run("hdiutil", "verify", str(disk_image))
+    checksums = "".join(
+        f"{hashlib.sha256(artifact.read_bytes()).hexdigest()}  {artifact.name}\n"
+        for artifact in [disk_image, archive]
+    )
+    (ROOT / "release/SHA256SUMS.txt").write_text(checksums)
+    print(f"\nApp: {bundle}\nDMG: {disk_image}\nArchive: {archive}", flush=True)
 
 
 if __name__ == "__main__":

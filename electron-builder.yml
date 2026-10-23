@@ -19,6 +19,8 @@ mac:
   target:
     - target: dir
       arch: [arm64]
+    - target: dmg
+      arch: [arm64]
   identity: "-"
   entitlements: desktop/entitlements.plist
   entitlementsInherit: desktop/entitlements.plist
@@ -29,3 +31,7 @@ mac:
       role: Viewer
       rank: Alternate
       isPackage: false
+dmg:
+  artifactName: C3D-Reader-${version}-macOS-${arch}.${ext}
+  title: C3D Reader ${version}
+  filesystem: HFS+

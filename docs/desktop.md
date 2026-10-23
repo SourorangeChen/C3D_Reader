@@ -25,7 +25,7 @@ Quitting closes the service, with a bounded forced-stop fallback. A parent-proce
 - The packaged app was launched through macOS and a real Vicon acquisition was opened through the native file dialog.
 - `codesign --verify --deep --strict` passed. This verifies local signature consistency, not Developer ID trust or notarization.
 
-The icon is drawn from the existing marker-and-segment brand by `scripts/make_icon.swift`. `scripts/build_macos.py` freezes the service, embeds assets, builds and signs the app, then creates a ZIP and checksum. Build outputs are ignored by Git; only the standalone application ZIP and checksum should be attached to a release. Source `.c3d` files, settings, recent-file state and local logs are excluded.
+The icon is drawn from the existing marker-and-segment brand by `scripts/make_icon.swift`. `scripts/build_macos.py` freezes the service, embeds assets, builds and signs the app, then creates a DMG, ZIP and checksums. The DMG includes an Applications link for drag-to-install and is verified with `hdiutil verify`. Build outputs are ignored by Git; only the standalone application DMG, ZIP and checksum file should be attached to a release. Source `.c3d` files, settings, recent-file state and local logs are excluded.
 
 ## Packaging references
 
