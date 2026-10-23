@@ -1,3 +1,4 @@
+import { usePreferences } from "./Preferences";
 import { useEffect, useRef, useState } from "react";
 import * as THREE from "three";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
@@ -18,6 +19,8 @@ type Props = {
   up: "Z" | "Y";
 };
 type SceneState = {
+  renderer: THREE.WebGLRenderer;
+  grid: THREE.GridHelper;
   scene: THREE.Scene;
   camera: THREE.PerspectiveCamera;
   controls: OrbitControls;
@@ -29,6 +32,7 @@ type SceneState = {
   render: () => void;
 };
 export function Viewer(props: Props) {
+  const { resolvedTheme, t } = usePreferences();
   const host = useRef<HTMLDivElement>(null);
   const labelLayer = useRef<HTMLDivElement>(null);
   const state = useRef<SceneState | null>(null);
@@ -43,7 +47,7 @@ export function Viewer(props: Props) {
       renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false });
     } catch {
       setFailure(
-        "3D 视图需要 WebGL。请在浏览器中启用硬件加速；曲线和导出仍可使用。",
+        t("3D 视图需要 WebGL。请在浏览器中启用硬件加速；曲线和导出仍可使用。"),
       );
       return;
     }
@@ -54,7 +58,7 @@ export function Viewer(props: Props) {
     el.appendChild(renderer.domElement);
     renderer.domElement.setAttribute(
       "aria-label",
-      "C3D 三维标记点；拖动旋转，滚轮缩放，右键平移，点击选择标记点",
+      t("C3D 三维标记点；拖动旋转，滚轮缩放，右键平移，点击选择标记点"),
     );
     const scene = new THREE.Scene();
     const camera = new THREE.PerspectiveCamera(38, 1, 0.005, 5000);
@@ -235,6 +239,8 @@ export function Viewer(props: Props) {
     renderer.domElement.addEventListener("pointerup", pointerup);
     renderer.domElement.addEventListener("pointermove", pointermove);
     state.current = {
+      renderer,
+      grid,
       scene,
       camera,
       controls,
@@ -267,6 +273,27 @@ export function Viewer(props: Props) {
   }, [props.meta, props.up]);
   useEffect(() => {
     const s = state.current;
+    if (!s) return;
+    s.renderer.setClearColor(resolvedTheme === "light" ? "#ffffff" : "#131217");
+    const gridColor = new THREE.Color(
+      resolvedTheme === "light" ? "#d1d8e2" : "#33323a",
+    );
+    const gridColors = s.grid.geometry.getAttribute("color");
+    for (let i = 0; i < gridColors.count; i++)
+      gridColors.setXYZ(i, gridColor.r, gridColor.g, gridColor.b);
+    gridColors.needsUpdate = true;
+    s.grid.material.color.set("#ffffff");
+    (s.lines.material as THREE.LineBasicMaterial).color.set(
+      resolvedTheme === "light" ? "#667487" : "#9da5b0",
+    );
+    s.renderer.domElement.setAttribute(
+      "aria-label",
+      t("C3D 三维标记点；拖动旋转，滚轮缩放，右键平移，点击选择标记点"),
+    );
+    s.render();
+  }, [resolvedTheme, t, props.meta, props.up]);
+  useEffect(() => {
+    const s = state.current;
     if (!s || !props.points) return;
     const matrix = new THREE.Matrix4(),
       color = new THREE.Color();
@@ -293,10 +320,14 @@ export function Viewer(props: Props) {
         i,
         color.set(
           i === props.selected
-            ? "#ffffff"
+            ? resolvedTheme === "light"
+              ? "#202630"
+              : "#ffffff"
             : p.label.split(":").at(-1)?.startsWith("L")
               ? "#4a8ad6"
-              : "#c3c6cb",
+              : resolvedTheme === "light"
+                ? "#65748a"
+                : "#c3c6cb",
         ),
       );
     });
@@ -326,6 +357,7 @@ export function Viewer(props: Props) {
     );
     s.render();
   }, [
+    resolvedTheme,
     props.points,
     props.hidden,
     props.selected,
@@ -397,20 +429,21 @@ export function Viewer(props: Props) {
       </div>
       <div className="view-top-note">
         <span className="live-dot" />
-        3D 场景{" "}
+        {t("3D 场景")}{" "}
         <span className="muted">
-          / {props.meta.pointUnit} · {props.up} 轴向上
+          / {props.meta.pointUnit} · {props.up}
+          {t("轴向上")}
         </span>
       </div>
       <div className="view-bottom-note">
-        <span>拖动旋转 · 滚轮缩放 · 右键平移</span>
-        <span>{hover || "点击标记点查看信号"}</span>
+        <span>{t("拖动旋转 · 滚轮缩放 · 右键平移")}</span>
+        <span>{hover || t("点击标记点查看信号")}</span>
       </div>
       <div className="view-actions">
         <button
           className="icon-button"
-          title="重置视角"
-          aria-label="重置视角"
+          title={t("重置视角")}
+          aria-label={t("重置视角")}
           onClick={() => {
             state.current?.fit(props.view);
             state.current?.render();
@@ -420,8 +453,8 @@ export function Viewer(props: Props) {
         </button>
         <button
           className="icon-button"
-          title="聚焦选中标记点"
-          aria-label="聚焦选中标记点"
+          title={t("聚焦选中标记点")}
+          aria-label={t("聚焦选中标记点")}
           disabled={props.selected == null}
           onClick={() => {
             const s = state.current,
@@ -439,8 +472,12 @@ export function Viewer(props: Props) {
           <Crosshair size={15} />
         </button>
       </div>
-      {!props.points && <div className="viewport-message">正在读取帧…</div>}
-      {failure && <div className="viewport-message error-text">{failure}</div>}
+      {!props.points && (
+        <div className="viewport-message">{t("正在读取帧…")}</div>
+      )}
+      {failure && (
+        <div className="viewport-message error-text">{t(failure)}</div>
+      )}
     </div>
   );
 }

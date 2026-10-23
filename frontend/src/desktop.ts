@@ -1,4 +1,5 @@
 import type { Acquisition, Library } from "./types";
+import type { Preferences } from "./Preferences";
 
 export type DesktopOpen = {
   acquisition?: Acquisition;
@@ -12,6 +13,9 @@ type DesktopBridge = {
   openDroppedFile: (file: File) => Promise<void>;
   onOpen: (callback: (payload: DesktopOpen) => void) => () => void;
   ready: () => Promise<void>;
+  getPreferences: () => Promise<Preferences>;
+  setPreferences: (preferences: Preferences) => Promise<void>;
+  onSettings: (callback: () => void) => () => void;
 };
 declare global {
   interface Window {

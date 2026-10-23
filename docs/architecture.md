@@ -24,6 +24,12 @@ An LRU retains up to three metadata / mapping objects. Frame ranges are zero-bas
 
 Analog series retain sample-level times. A min/max envelope also keeps a missing sample per bin to preserve visible discontinuities. No analysis or CSV export uses that display envelope.
 
+## Preferences and folder export
+
+`PreferencesProvider` owns validated language, theme and panel sizes. The desktop preload exposes restricted preference IPC; `preferences.json` is independent of the directory settings. Native and web themes follow the same choice, and system theme changes are observed. SVG charts use theme tokens, while the WebGL renderer changes its colors without rebuilding the camera.
+
+`POST /api/library/exports` snapshots the registered current-folder files. `GET /api/library/exports/{id}` returns progress; `DELETE` requests cancellation; `GET .../{id}/download` returns a completed ZIP. The single worker bypasses the selected-channel limit and exports all channels and all frames. It stages only one recording at a time, writes CSV and ZIP contents in bounded chunks, and keeps a manifest of successes and failures without absolute source paths. Downloads hold a lease so a new export or expiry cannot delete an in-flight file. Results expire after 30 idle minutes. Filename numbering prevents collisions across case and Unicode normalization differences.
+
 ## Format adaptations
 
 1. **Numbered parameter arrays.** Vicon can split arrays at 255 entries, including `LABELS2`, `SCALE2`, `OFFSET2` and `UNITS2`. Each family is concatenated before channel indexing. py-c3d 0.6 does not concatenate these analog arrays in its default frame transformation.
@@ -37,7 +43,7 @@ The Python suite checks float and integer coordinate scaling, calibrated analogs
 
 Files removed or changed during a session produce recoverable errors before a cached map is accessed. Reopening a changed file refreshes the acquisition. The development validation can be repeated without copying recordings: `python -m scripts.validate_local /path/to/Vicon` prints aggregate results only.
 
-Browser tests exercise playback and looping, frame stepping, channel selection, analog CSV downloads, event navigation, missing point display, parameter inspection, recoverable folder errors and layout at 1440×900, 1280×720, 768×1024 and 390×844.
+Browser tests exercise playback and looping, frame stepping, channel selection, analog CSV downloads, event navigation, missing point display, parameter inspection, recoverable folder errors and layout at 1440×900, 1280×720, 768×1024 and 390×844, theme / language persistence, system-theme changes, focus handling, splitter pointer / keyboard interaction and folder ZIP downloads.
 
 ### Reproducible synthetic validation — 2026-10-23
 
@@ -60,7 +66,7 @@ This verifies sampled numerical agreement on a reproducible fixture, not perform
 
 ## Interface decisions
 
-The workbench uses the Data terminal direction (design seed `196176706`): neutral dark surfaces, a blue selection rule, Public Sans text and IBM Plex Mono for frame counters / measurements. The largest region answers “What was the subject doing at this acquisition frame?”; the selected signal and event timeline provide synchronized evidence. No measurements are invented for the UI. Screenshots use the explicitly synthetic walking generator.
+The workbench uses the Data terminal direction (design seed `196176706`): neutral dark surfaces (with a matching light theme), a blue selection rule, Public Sans text and IBM Plex Mono for frame counters / measurements. The largest region answers “What was the subject doing at this acquisition frame?”; the selected signal and event timeline provide synchronized evidence. No measurements are invented for the UI. Screenshots use the explicitly synthetic walking generator.
 
 The browser design inspection at desktop, tablet and phone widths checks layout, contrast, loaded fonts and overflow. The intentional density leaves many secondary labels at 11–12 px, appropriate to a scientific workstation; all text remains at least 11 px. No shadow is used on resting panels; drawers and dialogs are overlays.
 

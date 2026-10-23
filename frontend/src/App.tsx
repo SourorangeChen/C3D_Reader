@@ -1,3 +1,7 @@
+import { usePreferences } from "./Preferences";
+import { defaultLayout } from "./Preferences";
+import { PanelDivider } from "./PanelDivider";
+import { BatchExportDialog } from "./BatchExportDialog";
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
   Activity,
@@ -91,7 +95,10 @@ function IconButton({
       title={label}
       aria-label={label}
       aria-pressed={active}
-      onClick={onClick}
+      onClick={(e) => {
+        e.currentTarget.focus();
+        onClick();
+      }}
       disabled={disabled}
     >
       {children}
@@ -100,6 +107,12 @@ function IconButton({
 }
 
 export default function App() {
+  const {
+    preferences,
+    resolvedTheme,
+    update: updatePreferences,
+    t,
+  } = usePreferences();
   const [library, setLibrary] = useState<Library | null>(null);
   const [meta, setMeta] = useState<Acquisition | null>(null);
   const [selection, setSelection] = useState<Selection>({
@@ -127,7 +140,10 @@ export default function App() {
   const [axes, setAxes] = useState([true, true, true]);
   const [loading, setLoading] = useState("");
   const [error, setError] = useState("");
-  const [modal, setModal] = useState<"folder" | "help" | "export" | null>(null);
+  const [modal, setModal] = useState<
+    "folder" | "help" | "export" | "settings" | "batch" | null
+  >(null);
+  const dialogRef = useRef<HTMLDivElement>(null);
   const [folder, setFolder] = useState("");
   const [fileSearch, setFileSearch] = useState("");
   const [showLibrary, setShowLibrary] = useState(true);
@@ -138,6 +154,10 @@ export default function App() {
   const dragDepth = useRef(0);
   const [dragging, setDragging] = useState(false);
   const [desktopReady, setDesktopReady] = useState(false);
+  const layout = preferences.layout;
+  const resizePanel = (key: keyof typeof layout, value: number) =>
+    updatePreferences({ layout: { ...layout, [key]: value } });
+  useEffect(() => desktop?.onSettings(() => setModal("settings")), []);
   const { points, error: frameError } = useFrames(meta, frame);
   const currentPoint =
     selection.kind === "point" ? meta?.points[selection.id] : null;
@@ -245,12 +265,12 @@ export default function App() {
     const files = [...event.dataTransfer.files];
     if (!files.length) return;
     if (files.length !== 1 || !/\.c3d$/i.test(files[0].name)) {
-      setError("请一次拖入一个 .c3d 文件。");
+      setError(t("请一次拖入一个 .c3d 文件。"));
       return;
     }
     if (!desktop) {
       setError(
-        "直接拖入文件请使用 macOS 桌面版；浏览器版可通过“打开文件夹”读取。",
+        t("直接拖入文件请使用 macOS 桌面版；浏览器版可通过“打开文件夹”读取。"),
       );
       return;
     }
@@ -365,11 +385,36 @@ export default function App() {
   }, [meta, frame, roi, seek, togglePlay, modal]);
   useEffect(() => {
     if (!modal) return;
+    const previous = document.activeElement as HTMLElement | null;
+    const dialog = dialogRef.current;
+    (
+      dialog?.querySelector<HTMLElement>("button, select, input, a[href]") ||
+      dialog
+    )?.focus();
     const handler = (e: KeyboardEvent) => {
       if (e.key === "Escape") setModal(null);
+      if (e.key === "Tab" && dialog) {
+        const focusable = [
+          ...dialog.querySelectorAll<HTMLElement>(
+            "button:not(:disabled), select:not(:disabled), input:not(:disabled), a[href], [tabindex='0']",
+          ),
+        ];
+        const first = focusable[0],
+          last = focusable.at(-1);
+        if (e.shiftKey && document.activeElement === first) {
+          e.preventDefault();
+          last?.focus();
+        } else if (!e.shiftKey && document.activeElement === last) {
+          e.preventDefault();
+          first?.focus();
+        }
+      }
     };
     window.addEventListener("keydown", handler);
-    return () => window.removeEventListener("keydown", handler);
+    return () => {
+      window.removeEventListener("keydown", handler);
+      previous?.focus();
+    };
   }, [modal]);
   const toggleHidden = (id: number) =>
     setHidden((old) => {
@@ -441,7 +486,15 @@ export default function App() {
   return (
     <div
       className="app"
-      data-theme="dark"
+      data-theme={resolvedTheme}
+      style={
+        {
+          "--library-width": `${layout.library}px`,
+          "--inspector-width": `${layout.inspector}px`,
+          "--scene-share": `${layout.scene}fr`,
+          "--signal-share": `${1 - layout.scene}fr`,
+        } as React.CSSProperties
+      }
       onDragEnter={(event) => {
         if (event.dataTransfer.types.includes("Files")) {
           event.preventDefault();
@@ -468,11 +521,11 @@ export default function App() {
         <div className="file-drop-overlay" role="status">
           <div>
             <File size={34} />
-            <h2>松开以打开 C3D 文件</h2>
+            <h2>{t("松开以打开 C3D 文件")}</h2>
             <p>
               {desktop
-                ? "直接读取本机文件，支持大型采集"
-                : "拖放打开功能适用于 macOS 桌面版"}
+                ? t("直接读取本机文件，支持大型采集")
+                : t("拖放打开功能适用于 macOS 桌面版")}
             </p>
           </div>
         </div>
@@ -483,28 +536,28 @@ export default function App() {
           <span>
             C3D <strong>Reader</strong>
           </span>
-          <span className="version">0.2.1</span>
+          <span className="version">0.3.0</span>
         </div>
         <div className="workspace-name">
           Motion workspace <span className="header-slash">/</span>{" "}
-          <span>动作数据工作台</span>
+          <span>{t("动作数据工作台")}</span>
         </div>
         <div className="header-actions">
           <span className="local-status">
             <span />
-            {desktop ? "macOS 桌面版" : "本地运行"}
+            {desktop ? t("macOS 桌面版") : t("本地运行")}
           </span>
           {desktop && (
             <button className="button" onClick={openNativeFile}>
               <File size={15} />
-              打开 C3D
+              {t("打开 C3D")}
             </button>
           )}
           <button className="button" onClick={openFolder}>
             <FolderOpen size={15} />
-            打开文件夹
+            {t("打开文件夹")}
           </button>
-          <IconButton label="使用帮助" onClick={() => setModal("help")}>
+          <IconButton label={t("使用帮助")} onClick={() => setModal("help")}>
             <CircleHelp size={17} />
           </IconButton>
         </div>
@@ -512,17 +565,17 @@ export default function App() {
       <div
         className={`app-body ${showLibrary ? "" : "hide-library"} ${showInspector ? "" : "hide-inspector"}`}
       >
-        <nav className="rail" aria-label="工作区面板">
+        <nav className="rail" aria-label={t("工作区面板")}>
           <div className="rail-top">
             <IconButton
-              label="文件与通道"
+              label={t("文件与通道")}
               onClick={() => setShowLibrary((v) => !v)}
               active={showLibrary}
             >
               <Layers size={19} />
             </IconButton>
             <IconButton
-              label="采集信息"
+              label={t("采集信息")}
               onClick={() => {
                 setShowInspector(true);
                 setInspector("info");
@@ -532,7 +585,7 @@ export default function App() {
               <Info size={19} />
             </IconButton>
             <IconButton
-              label="事件列表"
+              label={t("事件列表")}
               onClick={() => {
                 setShowInspector(true);
                 setInspector("events");
@@ -542,7 +595,7 @@ export default function App() {
               <List size={19} />
             </IconButton>
             <IconButton
-              label="C3D 参数"
+              label={t("C3D 参数")}
               onClick={() => {
                 setShowInspector(true);
                 setInspector("parameters");
@@ -553,17 +606,30 @@ export default function App() {
             </IconButton>
           </div>
           <div className="rail-bottom">
-            <IconButton label="使用帮助" onClick={() => setModal("help")}>
+            <IconButton label={t("设置")} onClick={() => setModal("settings")}>
+              <Settings2 size={18} />
+            </IconButton>
+            <IconButton label={t("使用帮助")} onClick={() => setModal("help")}>
               <CircleHelp size={18} />
             </IconButton>
           </div>
         </nav>
-        <aside className="explorer" aria-label="文件与通道">
+        <aside className="explorer" aria-label={t("文件与通道")}>
+          <PanelDivider
+            label={t("调整文件面板宽度")}
+            orientation="vertical"
+            value={layout.library}
+            min={190}
+            max={420}
+            onChange={(value) => resizePanel("library", value)}
+            onReset={() => resizePanel("library", defaultLayout.library)}
+            className="library-divider"
+          />
           <div className="panel-heading">
-            <h2>采集文件</h2>
+            <h2>{t("采集文件")}</h2>
             <span>{library?.files.length || 0}</span>
             <IconButton
-              label="刷新文件夹"
+              label={t("刷新文件夹")}
               onClick={() => {
                 void api<Library>("/api/library")
                   .then(setLibrary)
@@ -575,21 +641,21 @@ export default function App() {
           </div>
           <button
             className="folder-label"
-            title={library?.folder || "未选择文件夹"}
+            title={library?.folder || t("未选择文件夹")}
             onClick={openFolder}
           >
             <FolderOpen size={14} />
             <span>
               {library?.folder.split("/").filter(Boolean).at(-1) ||
-                "选择数据文件夹"}
+                t("选择数据文件夹")}
             </span>
             <ChevronDown size={12} />
           </button>
           <div className="file-search">
             <Search size={12} />
             <input
-              aria-label="搜索文件"
-              placeholder="搜索采集文件"
+              aria-label={t("搜索文件")}
+              placeholder={t("搜索采集文件")}
               value={fileSearch}
               onChange={(e) => setFileSearch(e.target.value)}
             />
@@ -613,8 +679,8 @@ export default function App() {
             {library && !library.files.length && (
               <p className="empty-copy">
                 {library.folder && !library.available
-                  ? "数据硬盘未连接，请重新挂载或选择文件夹。"
-                  : "打开包含 .c3d 文件的本地文件夹。"}
+                  ? t("数据硬盘未连接，请重新挂载或选择文件夹。")
+                  : t("打开包含 .c3d 文件的本地文件夹。")}
               </p>
             )}
           </div>
@@ -623,22 +689,29 @@ export default function App() {
             onClick={() => void openFile("demo")}
           >
             <Activity size={13} />
-            <span>合成步行示例</span>
+            <span>{t("合成步行示例")}</span>
             <span className="tiny-note">Demo</span>
           </button>
+          <button
+            className="batch-export-button"
+            onClick={() => setModal("batch")}
+            disabled={!library?.folder}
+          >
+            <Download size={13} /> {t("批量导出 CSV")}
+          </button>
           <div className="panel-heading channel-heading">
-            <h2>采集通道</h2>
+            <h2>{t("采集通道")}</h2>
             <span>{meta ? meta.points.length + meta.analogs.length : "—"}</span>
           </div>
           <div
             className="tabs channel-tabs"
             role="tablist"
-            aria-label="通道类型"
+            aria-label={t("通道类型")}
           >
             {[
-              ["marker", "标记点", markerCount],
-              ["model", "模型", modelCount],
-              ["analog", "模拟", meta?.analogs.length || 0],
+              ["marker", t("标记点"), markerCount],
+              ["model", t("模型"), modelCount],
+              ["analog", t("模拟"), meta?.analogs.length || 0],
             ].map(([id, label, n]) => (
               <button
                 key={id}
@@ -658,9 +731,11 @@ export default function App() {
           <div className="channel-search">
             <Search size={14} />
             <input
-              aria-label="搜索通道"
+              aria-label={t("搜索通道")}
               placeholder={
-                tab === "analog" ? "搜索力、EMG、IMU…" : "搜索标记点或模型输出…"
+                tab === "analog"
+                  ? t("搜索力、EMG、IMU…")
+                  : t("搜索标记点或模型输出…")
               }
               value={search}
               onChange={(e) => setSearch(e.target.value)}
@@ -668,7 +743,7 @@ export default function App() {
             {search && (
               <button
                 className="clear-search"
-                aria-label="清除搜索"
+                aria-label={t("清除搜索")}
                 onClick={() => setSearch("")}
               >
                 <X size={12} />
@@ -682,7 +757,7 @@ export default function App() {
                 checked={virtual}
                 onChange={toggleVirtual}
               />
-              显示 Vicon 模型坐标点
+              {t("显示 Vicon 模型坐标点")}
             </label>
           )}
           <div className="channel-list">
@@ -706,8 +781,10 @@ export default function App() {
                     {p.kind === "marker" ? (
                       <button
                         className="visibility-button"
-                        title={hidden.has(p.id) ? "显示标记点" : "隐藏标记点"}
-                        aria-label={`${hidden.has(p.id) ? "显示" : "隐藏"} ${p.label}`}
+                        title={
+                          hidden.has(p.id) ? t("显示标记点") : t("隐藏标记点")
+                        }
+                        aria-label={`${hidden.has(p.id) ? t("显示") : t("隐藏")} ${p.label}`}
                         onClick={() => toggleHidden(p.id)}
                       >
                         {hidden.has(p.id) ? (
@@ -732,23 +809,23 @@ export default function App() {
               (tab === "analog"
                 ? visibleAnalogs.length
                 : visiblePoints.length) === 0 && (
-                <p className="empty-copy">没有匹配的通道。</p>
+                <p className="empty-copy">{t("没有匹配的通道。")}</p>
               )}
           </div>
           <div className="explorer-footer">
             <span className="live-dot" />
-            只读访问 · 原始文件保持完整
+            {t("只读访问 · 原始文件保持完整")}
           </div>
         </aside>
         <main className="workspace">
           <div className="trial-header">
             <div className="trial-title">
               <div className="breadcrumb">
-                <span>采集</span>
+                <span>{t("采集")}</span>
                 <ChevronRight size={12} />
                 <span>
                   {meta?.id === "demo"
-                    ? "合成示例"
+                    ? t("合成示例")
                     : meta?.manufacturer || "C3D"}
                 </span>
               </div>
@@ -764,7 +841,7 @@ export default function App() {
               onClick={() => setModal("export")}
             >
               <Download size={14} />
-              <span>导出 CSV</span>
+              <span>{t("导出 CSV")}</span>
             </button>
           </div>
           <div className="trial-stats">
@@ -772,193 +849,214 @@ export default function App() {
               <strong>
                 {meta ? countFormat.format(meta.frameCount) : "—"}
               </strong>
-              帧
+              {t("帧")}
             </span>
             <span>
-              <strong>{meta?.pointRate ?? "—"}</strong>Hz 标记点
+              <strong>{meta?.pointRate ?? "—"}</strong>
+              {t("Hz 标记点")}
             </span>
             <span>
               <strong>
                 {meta ? countFormat.format(meta.analogRate) : "—"}
               </strong>
-              Hz 模拟信号
+              {t("Hz 模拟信号")}
             </span>
             <span>
-              <strong>{meta?.duration.toFixed(2) ?? "—"}</strong>s 时长
+              <strong>{meta?.duration.toFixed(2) ?? "—"}</strong>
+              {t("s 时长")}
             </span>
             <span className="storage-note">
               {meta?.id === "demo"
-                ? "合成数据"
+                ? t("合成数据")
                 : meta
-                  ? `${formatBytes(meta.size)} · 分块读取`
+                  ? t("{0} · 分块读取", [formatBytes(meta.size)])
                   : ""}
             </span>
           </div>
           {(error || frameError) && !modal && (
             <div className="error-banner" role="alert">
-              <span>{error || frameError}</span>
+              <span>{t(error || frameError)}</span>
               <button
                 className="icon-button"
-                aria-label="关闭错误提示"
+                aria-label={t("关闭错误提示")}
                 onClick={() => setError("")}
               >
                 <X size={14} />
               </button>
             </div>
           )}
-          <section className="scene-panel" aria-label="三维视图">
-            <div className="scene-toolbar">
-              <div className="toolbar-group">
-                <Box size={14} />
-                <select
-                  aria-label="视角"
-                  value={view}
-                  onChange={(e) => setView(e.target.value)}
-                >
-                  <option value="perspective">透视视图</option>
-                  <option value="front">正面视图</option>
-                  <option value="side">侧面视图</option>
-                  <option value="top">俯视视图</option>
-                </select>
+          <div className="visual-panels">
+            <section className="scene-panel" aria-label={t("三维视图")}>
+              <div className="scene-toolbar">
+                <div className="toolbar-group">
+                  <Box size={14} />
+                  <select
+                    aria-label={t("视角")}
+                    value={view}
+                    onChange={(e) => setView(e.target.value)}
+                  >
+                    <option value="perspective">{t("透视视图")}</option>
+                    <option value="front">{t("正面视图")}</option>
+                    <option value="side">{t("侧面视图")}</option>
+                    <option value="top">{t("俯视视图")}</option>
+                  </select>
+                </div>
+                <div className="toolbar-toggles">
+                  <button
+                    className={segments ? "active" : ""}
+                    aria-pressed={segments}
+                    onClick={() => setSegments((v) => !v)}
+                  >
+                    {t("连线")}
+                  </button>
+                  <button
+                    className={trails ? "active" : ""}
+                    aria-pressed={trails}
+                    onClick={() => setTrails((v) => !v)}
+                  >
+                    {t("轨迹")}
+                  </button>
+                  <button
+                    className={labels ? "active" : ""}
+                    aria-pressed={labels}
+                    onClick={() => setLabels((v) => !v)}
+                  >
+                    {t("标签")}
+                  </button>
+                  <select
+                    aria-label={t("地面向上轴")}
+                    value={up}
+                    onChange={(e) => setUp(e.target.value as "Z" | "Y")}
+                  >
+                    <option value="Z">Z ↑</option>
+                    <option value="Y">Y ↑</option>
+                  </select>
+                  <IconButton
+                    label={t("切换信息面板")}
+                    onClick={() => setShowInspector((v) => !v)}
+                  >
+                    <Maximize2 size={13} />
+                  </IconButton>
+                </div>
               </div>
-              <div className="toolbar-toggles">
-                <button
-                  className={segments ? "active" : ""}
-                  aria-pressed={segments}
-                  onClick={() => setSegments((v) => !v)}
-                >
-                  连线
-                </button>
-                <button
-                  className={trails ? "active" : ""}
-                  aria-pressed={trails}
-                  onClick={() => setTrails((v) => !v)}
-                >
-                  轨迹
-                </button>
-                <button
-                  className={labels ? "active" : ""}
-                  aria-pressed={labels}
-                  onClick={() => setLabels((v) => !v)}
-                >
-                  标签
-                </button>
-                <select
-                  aria-label="地面向上轴"
-                  value={up}
-                  onChange={(e) => setUp(e.target.value as "Z" | "Y")}
-                >
-                  <option value="Z">Z ↑</option>
-                  <option value="Y">Y ↑</option>
-                </select>
-                <IconButton
-                  label="切换信息面板"
-                  onClick={() => setShowInspector((v) => !v)}
-                >
-                  <Maximize2 size={13} />
-                </IconButton>
-              </div>
-            </div>
-            {meta ? (
-              <Viewer
-                meta={meta}
-                frame={frame}
-                points={points}
-                selected={currentPoint?.kind === "marker" ? selection.id : null}
-                hidden={hidden}
-                segments={segments}
-                trails={trails}
-                labels={labels}
-                view={view}
-                up={up}
-                onSelect={pickPoint}
-              />
-            ) : (
-              <div className="viewer-placeholder">
-                选择一个 C3D 文件开始查看
-              </div>
-            )}
-            <div className="scene-legend">
-              <span>
-                <i className="dot left" />
-                左侧标记点
-              </span>
-              <span>
-                <i className="dot right" />
-                右侧 / 其他
-              </span>
-              <span className="scene-footnote">
-                {meta?.plates.length
-                  ? `${meta.plates.length} 块力台轮廓 · `
-                  : ""}
-                连线为标签推断
-              </span>
-            </div>
-          </section>
-          <section className="signal-panel">
-            <div className="signal-heading">
-              <div>
-                <Activity size={14} />
-                <h2>{selectedLabel || "信号曲线"}</h2>
-                <span>{selectedUnit || "无单位"}</span>
-              </div>
-              <div className="axis-controls">
-                {selection.kind === "point" ? (
-                  ["X", "Y", "Z"].map((a, i) => (
-                    <button
-                      key={a}
-                      className={axes[i] ? "active" : ""}
-                      aria-pressed={axes[i]}
-                      style={
-                        {
-                          "--axis-color": ["#4a8ad6", "#c2c5cc", "#d9a441"][i],
-                        } as React.CSSProperties
-                      }
-                      onClick={() =>
-                        setAxes((old) => old.map((v, j) => (j === i ? !v : v)))
-                      }
-                    >
-                      <i />
-                      {a}
-                    </button>
-                  ))
-                ) : (
-                  <span>{series?.sampleRate} Hz</span>
-                )}
-              </div>
-            </div>
-            {seriesError ? (
-              <div className="chart-error" role="alert">
-                {seriesError}
-              </div>
-            ) : (
-              <SignalPlot
-                data={series}
-                time={clock}
-                axes={selection.kind === "point" ? axes : [true, true, true]}
-                events={meta?.events || []}
-                onSeek={(time) => {
-                  if (meta) {
-                    setPlaying(false);
-                    seek(Math.round(time * meta.pointRate));
+              {meta ? (
+                <Viewer
+                  meta={meta}
+                  frame={frame}
+                  points={points}
+                  selected={
+                    currentPoint?.kind === "marker" ? selection.id : null
                   }
-                }}
-              />
-            )}
-            <div className="signal-footer">
-              <span>点击曲线定位帧</span>
-              <span>
-                {series?.method === "min-max envelope"
-                  ? "保留极值的显示抽样 · CSV 保留全部采样点"
-                  : ""}
-              </span>
-            </div>
-          </section>
-          <section className="timeline-panel" aria-label="播放时间轴">
+                  hidden={hidden}
+                  segments={segments}
+                  trails={trails}
+                  labels={labels}
+                  view={view}
+                  up={up}
+                  onSelect={pickPoint}
+                />
+              ) : (
+                <div className="viewer-placeholder">
+                  {t("选择一个 C3D 文件开始查看")}
+                </div>
+              )}
+              <div className="scene-legend">
+                <span>
+                  <i className="dot left" />
+                  {t("左侧标记点")}
+                </span>
+                <span>
+                  <i className="dot right" />
+                  {t("右侧 / 其他")}
+                </span>
+                <span className="scene-footnote">
+                  {meta?.plates.length
+                    ? t("{0} 块力台轮廓 · ", [meta.plates.length])
+                    : ""}
+                  {t("连线为标签推断")}
+                </span>
+              </div>
+            </section>
+            <PanelDivider
+              label={t("调整三维与曲线区域")}
+              orientation="horizontal"
+              value={layout.scene}
+              min={0.3}
+              max={0.82}
+              onChange={(value) => resizePanel("scene", value)}
+              onReset={() => resizePanel("scene", defaultLayout.scene)}
+            />
+            <section className="signal-panel">
+              <div className="signal-heading">
+                <div>
+                  <Activity size={14} />
+                  <h2>{selectedLabel || t("信号曲线")}</h2>
+                  <span>{selectedUnit || t("无单位")}</span>
+                </div>
+                <div className="axis-controls">
+                  {selection.kind === "point" ? (
+                    ["X", "Y", "Z"].map((a, i) => (
+                      <button
+                        key={a}
+                        className={axes[i] ? "active" : ""}
+                        aria-pressed={axes[i]}
+                        style={
+                          {
+                            "--axis-color": [
+                              "var(--signal-x)",
+                              "var(--signal-y)",
+                              "var(--signal-z)",
+                            ][i],
+                          } as React.CSSProperties
+                        }
+                        onClick={() =>
+                          setAxes((old) =>
+                            old.map((v, j) => (j === i ? !v : v)),
+                          )
+                        }
+                      >
+                        <i />
+                        {a}
+                      </button>
+                    ))
+                  ) : (
+                    <span>{series?.sampleRate} Hz</span>
+                  )}
+                </div>
+              </div>
+              {seriesError ? (
+                <div className="chart-error" role="alert">
+                  {t(seriesError)}
+                </div>
+              ) : (
+                <SignalPlot
+                  data={series}
+                  time={clock}
+                  axes={selection.kind === "point" ? axes : [true, true, true]}
+                  events={meta?.events || []}
+                  onSeek={(time) => {
+                    if (meta) {
+                      setPlaying(false);
+                      seek(Math.round(time * meta.pointRate));
+                    }
+                  }}
+                />
+              )}
+              <div className="signal-footer">
+                <span>{t("点击曲线定位帧")}</span>
+                <span>
+                  {series?.method === "min-max envelope"
+                    ? t("保留极值的显示抽样 · CSV 保留全部采样点")
+                    : ""}
+                </span>
+              </div>
+            </section>
+          </div>
+          <section className="timeline-panel" aria-label={t("播放时间轴")}>
             <div className="playback-controls">
               <div className="transport">
                 <IconButton
-                  label="跳至区间开头"
+                  label={t("跳至区间开头")}
                   onClick={() => {
                     setPlaying(false);
                     seek(roi[0]);
@@ -968,7 +1066,7 @@ export default function App() {
                   <ChevronsLeft size={16} />
                 </IconButton>
                 <IconButton
-                  label="上一帧"
+                  label={t("上一帧")}
                   onClick={() => {
                     setPlaying(false);
                     seek(frame - 1);
@@ -979,7 +1077,7 @@ export default function App() {
                 </IconButton>
                 <button
                   className="play-button"
-                  aria-label={playing ? "暂停" : "播放"}
+                  aria-label={playing ? t("暂停") : t("播放")}
                   disabled={!meta}
                   onClick={togglePlay}
                 >
@@ -990,7 +1088,7 @@ export default function App() {
                   )}
                 </button>
                 <IconButton
-                  label="下一帧"
+                  label={t("下一帧")}
                   onClick={() => {
                     setPlaying(false);
                     seek(frame + 1);
@@ -1000,7 +1098,7 @@ export default function App() {
                   <SkipForward size={15} />
                 </IconButton>
                 <IconButton
-                  label="跳至区间末尾"
+                  label={t("跳至区间末尾")}
                   onClick={() => {
                     setPlaying(false);
                     seek(roi[1]);
@@ -1010,7 +1108,7 @@ export default function App() {
                   <ChevronsRight size={16} />
                 </IconButton>
                 <select
-                  aria-label="播放速度"
+                  aria-label={t("播放速度")}
                   value={speed}
                   onChange={(e) => setSpeed(+e.target.value)}
                 >
@@ -1025,7 +1123,7 @@ export default function App() {
                   onClick={() => setLoop((v) => !v)}
                   aria-pressed={loop}
                 >
-                  循环
+                  {t("循环")}
                 </button>
               </div>
               <div className="time-readout">
@@ -1035,9 +1133,9 @@ export default function App() {
                 <span>/ {lastTime.toFixed(3)} s</span>
               </div>
               <div className="frame-readout">
-                <span>帧</span>
+                <span>{t("帧")}</span>
                 <input
-                  aria-label="当前帧"
+                  aria-label={t("当前帧")}
                   type="number"
                   min={meta ? roi[0] + meta.firstFrame : 0}
                   max={meta ? roi[1] + meta.firstFrame : 0}
@@ -1063,8 +1161,16 @@ export default function App() {
                       style={{
                         left: `${(e.time / Math.max(0.001, lastTime)) * 100}%`,
                       }}
-                      aria-label={`${e.context} ${e.label}，帧 ${e.frame}`}
-                      title={`${e.context} ${e.label} · 帧 ${e.frame}`}
+                      aria-label={t("{0} {1}，帧 {2}", [
+                        e.context,
+                        e.label,
+                        e.frame,
+                      ])}
+                      title={t("{0} {1} · 帧 {2}", [
+                        e.context,
+                        e.label,
+                        e.frame,
+                      ])}
                       onClick={() => {
                         setPlaying(false);
                         seek(e.frame - meta.firstFrame);
@@ -1073,7 +1179,7 @@ export default function App() {
                   ))}
               </div>
               <input
-                aria-label="时间轴"
+                aria-label={t("时间轴")}
                 type="range"
                 min={0}
                 max={meta?.frameCount ? meta.frameCount - 1 : 1}
@@ -1090,22 +1196,33 @@ export default function App() {
               />
               <div className="timeline-labels">
                 <span>{meta?.firstFrame || 0}</span>
-                <span>相对时间 · 事件标记可点击</span>
+                <span>{t("相对时间 · 事件标记可点击")}</span>
                 <span>{meta?.lastFrame || 0}</span>
               </div>
             </div>
           </section>
         </main>
-        <aside className="inspector" aria-label="采集检查器">
+        <aside className="inspector" aria-label={t("采集检查器")}>
+          <PanelDivider
+            label={t("调整信息面板宽度")}
+            orientation="vertical"
+            value={layout.inspector}
+            min={200}
+            max={400}
+            reverse
+            onChange={(value) => resizePanel("inspector", value)}
+            onReset={() => resizePanel("inspector", defaultLayout.inspector)}
+            className="inspector-divider"
+          />
           <div
             className="tabs inspector-tabs"
             role="tablist"
-            aria-label="检查器"
+            aria-label={t("检查器")}
           >
             {[
-              ["info", "信息"],
-              ["events", "事件"],
-              ["parameters", "参数"],
+              ["info", t("信息")],
+              ["events", t("事件")],
+              ["parameters", t("参数")],
             ].map(([id, label]) => (
               <button
                 key={id}
@@ -1119,7 +1236,7 @@ export default function App() {
             ))}
             <button
               className="close-inspector"
-              aria-label="隐藏信息面板"
+              aria-label={t("隐藏信息面板")}
               onClick={() => setShowInspector(false)}
             >
               <X size={13} />
@@ -1127,7 +1244,7 @@ export default function App() {
           </div>
           {inspector === "info" && (
             <div className="inspector-content">
-              <div className="section-label">选中通道</div>
+              <div className="section-label">{t("选中通道")}</div>
               <div className="selected-channel">
                 <span className="point-symbol">
                   {selection.kind === "point" ? "●" : "∿"}
@@ -1136,19 +1253,19 @@ export default function App() {
               </div>
               <dl className="key-values">
                 <div>
-                  <dt>类型</dt>
+                  <dt>{t("类型")}</dt>
                   <dd>
                     {selection.kind === "analog"
-                      ? "模拟信号"
-                      : kindName[currentPoint?.kind || ""] || "—"}
+                      ? t("模拟信号")
+                      : t(kindName[currentPoint?.kind || ""] || "—")}
                   </dd>
                 </div>
                 <div>
-                  <dt>单位</dt>
+                  <dt>{t("单位")}</dt>
                   <dd>{selectedUnit || "—"}</dd>
                 </div>
                 <div>
-                  <dt>采样率</dt>
+                  <dt>{t("采样率")}</dt>
                   <dd>
                     {selection.kind === "point"
                       ? meta?.pointRate
@@ -1175,23 +1292,24 @@ export default function App() {
                   })}
                   <p>
                     {points && Number.isFinite(points[selection.id * 3])
-                      ? "当前帧有效"
-                      : "当前帧缺失"}{" "}
-                    · 帧 {meta ? frame + meta.firstFrame : "—"}
+                      ? t("当前帧有效")
+                      : t("当前帧缺失")}{" "}
+                    {t("· 帧")}
+                    {meta ? frame + meta.firstFrame : "—"}
                   </p>
                 </div>
               )}
               <div className="inspector-section">
                 <div className="section-label">
                   <Settings2 size={13} />
-                  观察区间
+                  {t("观察区间")}
                 </div>
                 <div className="roi-inputs">
                   <label>
-                    起始帧
+                    {t("起始帧")}
                     <input
                       type="number"
-                      aria-label="区间起始帧"
+                      aria-label={t("区间起始帧")}
                       min={meta?.firstFrame}
                       max={meta?.lastFrame}
                       value={meta ? roi[0] + meta.firstFrame : 0}
@@ -1202,10 +1320,10 @@ export default function App() {
                     />
                   </label>
                   <label>
-                    结束帧
+                    {t("结束帧")}
                     <input
                       type="number"
-                      aria-label="区间结束帧"
+                      aria-label={t("区间结束帧")}
                       min={meta?.firstFrame}
                       max={meta?.lastFrame}
                       value={meta ? roi[1] + meta.firstFrame : 0}
@@ -1218,58 +1336,60 @@ export default function App() {
                 </div>
                 <div className="roi-actions">
                   <button onClick={() => updateRoi(frame, roi[1])}>
-                    此帧设为起点
+                    {t("此帧设为起点")}
                   </button>
                   <button onClick={() => updateRoi(roi[0], frame)}>
-                    设为终点
+                    {t("设为终点")}
                   </button>
                 </div>
                 <button
                   className="text-button reset-roi"
                   onClick={() => meta && updateRoi(0, meta.frameCount - 1)}
                 >
-                  重置为完整采集
+                  {t("重置为完整采集")}
                 </button>
               </div>
               <div className="inspector-section">
-                <div className="section-label">采集摘要</div>
+                <div className="section-label">{t("采集摘要")}</div>
                 <dl className="key-values">
                   <div>
-                    <dt>标记点 / 模型</dt>
+                    <dt>{t("标记点 / 模型")}</dt>
                     <dd>{meta?.points.length ?? "—"}</dd>
                   </div>
                   <div>
-                    <dt>模拟通道</dt>
+                    <dt>{t("模拟通道")}</dt>
                     <dd>{meta?.analogs.length ?? "—"}</dd>
                   </div>
                   <div>
-                    <dt>事件</dt>
+                    <dt>{t("事件")}</dt>
                     <dd>{meta?.events.length ?? "—"}</dd>
                   </div>
                   <div>
-                    <dt>力台</dt>
+                    <dt>{t("力台")}</dt>
                     <dd>{meta?.plates.length ?? "—"}</dd>
                   </div>
                   <div>
-                    <dt>坐标单位</dt>
+                    <dt>{t("坐标单位")}</dt>
                     <dd>{meta?.pointUnit || "—"}</dd>
                   </div>
                   <div>
-                    <dt>存储格式</dt>
+                    <dt>{t("存储格式")}</dt>
                     <dd>{meta?.storage || "—"}</dd>
                   </div>
                 </dl>
               </div>
               <p className="info-note">
-                时间以首帧为 0 秒。帧号保留原始 C3D
-                编号。模型输出按文件声明的物理单位显示。
+                {t(
+                  "时间以首帧为 0 秒。帧号保留原始 C3D 编号。模型输出按文件声明的物理单位显示。",
+                )}
               </p>
             </div>
           )}
           {inspector === "events" && (
             <div className="inspector-content">
               <div className="section-label">
-                采集事件 <span>{meta?.events.length || 0}</span>
+                {t("采集事件")}
+                <span>{meta?.events.length || 0}</span>
               </div>
               <div className="event-list">
                 {meta?.events.map((e, i) => (
@@ -1293,7 +1413,9 @@ export default function App() {
                     <div>
                       <strong>{e.label}</strong>
                       <span>
-                        {e.context || "通用"} · 帧 {e.frame}
+                        {e.context || t("通用")}
+                        {t("· 帧")}
+                        {e.frame}
                       </span>
                     </div>
                     <small>{e.time.toFixed(3)} s</small>
@@ -1301,13 +1423,13 @@ export default function App() {
                 ))}
               </div>
               {!meta?.events.length && (
-                <p className="empty-copy">这个文件没有记录事件。</p>
+                <p className="empty-copy">{t("这个文件没有记录事件。")}</p>
               )}
             </div>
           )}
           {inspector === "parameters" && (
             <div className="inspector-content parameters">
-              <div className="section-label">原始 C3D 参数</div>
+              <div className="section-label">{t("原始 C3D 参数")}</div>
               {params ? (
                 params.map((g) => (
                   <details key={g.name}>
@@ -1335,13 +1457,13 @@ export default function App() {
                   </details>
                 ))
               ) : (
-                <p className="empty-copy">正在读取参数…</p>
+                <p className="empty-copy">{t("正在读取参数…")}</p>
               )}
             </div>
           )}
           <div className="inspector-bottom">
             <Info size={13} />
-            <span>数据在此设备上处理</span>
+            <span>{t("数据在此设备上处理")}</span>
           </div>
         </aside>
       </div>
@@ -1350,25 +1472,33 @@ export default function App() {
           {loading ? (
             <>
               <span className="loading-dot" />
-              {loading}
+              {t(loading)}
             </>
           ) : (
             <>
               <Check size={12} />
-              {meta ? "采集已就绪" : "等待打开文件"}
+              {meta ? t("采集已就绪") : t("等待打开文件")}
             </>
           )}
         </span>
         <span>
           {meta?.id === "demo"
-            ? "合成演示数据，不含受试者信息"
-            : meta?.name || "本地 C3D 工作台"}
+            ? t("合成演示数据，不含受试者信息")
+            : meta?.name || t("本地 C3D 工作台")}
         </span>
         <span>
-          Space 播放 / 暂停 <span className="status-separator">·</span> ← → 逐帧
+          {t("Space 播放 / 暂停")}
+          <span className="status-separator">·</span>
+          {t("← → 逐帧")}
         </span>
       </footer>
-      {modal && (
+      <BatchExportDialog
+        visible={modal === "batch"}
+        fileCount={library?.files.length || 0}
+        onClose={() => setModal(null)}
+        dialogRef={dialogRef}
+      />
+      {modal && modal !== "batch" && (
         <div
           className="modal-backdrop"
           onPointerDown={(e) => {
@@ -1377,6 +1507,7 @@ export default function App() {
         >
           <div
             className="modal"
+            ref={dialogRef}
             role="dialog"
             aria-modal="true"
             aria-labelledby="dialog-title"
@@ -1384,28 +1515,89 @@ export default function App() {
             <div className="modal-title">
               <h2 id="dialog-title">
                 {modal === "folder"
-                  ? "打开本地数据文件夹"
-                  : modal === "export"
-                    ? "导出信号数据"
-                    : "C3D Reader 使用帮助"}
+                  ? t("打开本地数据文件夹")
+                  : modal === "settings"
+                    ? t("设置")
+                    : modal === "export"
+                      ? t("导出信号数据")
+                      : t("C3D Reader 使用帮助")}
               </h2>
               <button
                 className="icon-button"
-                aria-label="关闭窗口"
+                aria-label={t("关闭窗口")}
                 onClick={() => setModal(null)}
-                autoFocus
               >
                 <X size={17} />
               </button>
             </div>
+            {modal === "settings" && (
+              <>
+                <div className="settings-row">
+                  <label htmlFor="theme-select">{t("主题")}</label>
+                  <select
+                    id="theme-select"
+                    value={preferences.theme}
+                    onChange={(e) =>
+                      updatePreferences({
+                        theme: e.target.value as typeof preferences.theme,
+                      })
+                    }
+                  >
+                    <option value="dark">{t("深色")}</option>
+                    <option value="light">{t("浅色")}</option>
+                    <option value="system">{t("跟随系统")}</option>
+                  </select>
+                </div>
+                <div className="settings-row">
+                  <label htmlFor="language-select">{t("界面语言")}</label>
+                  <select
+                    id="language-select"
+                    value={preferences.language}
+                    onChange={(e) =>
+                      updatePreferences({
+                        language: e.target.value as typeof preferences.language,
+                      })
+                    }
+                  >
+                    <option value="zh-CN">简体中文</option>
+                    <option value="en">English</option>
+                  </select>
+                </div>
+                <div className="settings-layout">
+                  <h3>{t("工作区布局")}</h3>
+                  <p>
+                    {t("拖动面板之间的分隔条调整大小；双击分隔条恢复默认。")}
+                  </p>
+                  <button
+                    className="button"
+                    onClick={() => updatePreferences({ layout: defaultLayout })}
+                  >
+                    <RefreshCw size={14} />
+                    {t("恢复默认布局")}
+                  </button>
+                </div>
+                <p className="form-note">
+                  {t("设置自动保存在本机，即时生效。")}
+                </p>
+                <div className="modal-actions">
+                  <button
+                    className="button primary"
+                    onClick={() => setModal(null)}
+                  >
+                    {t("完成")}
+                  </button>
+                </div>
+              </>
+            )}
             {modal === "folder" && (
               <form onSubmit={saveFolder}>
                 <p>
-                  填写包含 C3D
-                  文件的文件夹路径。支持外置硬盘，数据在本机直接读取。
+                  {t(
+                    "填写包含 C3D 文件的文件夹路径。支持外置硬盘，数据在本机直接读取。",
+                  )}
                 </p>
                 <label className="field-label" htmlFor="folder-path">
-                  文件夹路径
+                  {t("文件夹路径")}
                 </label>
                 <input
                   className="folder-input"
@@ -1416,11 +1608,11 @@ export default function App() {
                   required
                 />
                 <p className="form-note">
-                  可在 Finder 中选中文件夹，按 ⌥⌘C 复制路径后粘贴。
+                  {t("可在 Finder 中选中文件夹，按 ⌥⌘C 复制路径后粘贴。")}
                 </p>
                 {error && (
                   <p className="error-text" role="alert">
-                    {error}
+                    {t(error)}
                   </p>
                 )}
                 <div className="modal-actions">
@@ -1429,7 +1621,7 @@ export default function App() {
                     className="button"
                     onClick={() => setModal(null)}
                   >
-                    取消
+                    {t("取消")}
                   </button>
                   <button
                     className="button primary"
@@ -1437,7 +1629,7 @@ export default function App() {
                     disabled={!!loading}
                   >
                     <FolderOpen size={14} />
-                    打开文件夹
+                    {t("打开文件夹")}
                   </button>
                 </div>
               </form>
@@ -1445,18 +1637,21 @@ export default function App() {
             {modal === "export" && meta && (
               <>
                 <p>
-                  导出 <strong>{selectedLabel}</strong>
-                  ，保留观察区间内的全部采样点、原始帧号、相对时间和物理单位。
+                  {t("导出")}
+                  <strong>{selectedLabel}</strong>
+                  {t(
+                    "，保留观察区间内的全部采样点、原始帧号、相对时间和物理单位。",
+                  )}
                 </p>
                 <dl className="export-details">
                   <div>
-                    <dt>帧区间（含两端）</dt>
+                    <dt>{t("帧区间（含两端）")}</dt>
                     <dd>
                       {roi[0] + meta.firstFrame} – {roi[1] + meta.firstFrame}
                     </dd>
                   </div>
                   <div>
-                    <dt>采样点数</dt>
+                    <dt>{t("采样点数")}</dt>
                     <dd>
                       {countFormat.format(
                         (roi[1] - roi[0] + 1) *
@@ -1467,20 +1662,20 @@ export default function App() {
                     </dd>
                   </div>
                   <div>
-                    <dt>内容</dt>
+                    <dt>{t("内容")}</dt>
                     <dd>
                       {selection.kind === "point"
                         ? "X / Y / Z / residual"
-                        : selectedUnit || "模拟信号"}
+                        : selectedUnit || t("模拟信号")}
                     </dd>
                   </div>
                 </dl>
                 <p className="form-note">
-                  缺失坐标留空，residual 为 −1。导出不会修改原文件。
+                  {t("缺失坐标留空，residual 为 −1。导出不会修改原文件。")}
                 </p>
                 <div className="modal-actions">
                   <button className="button" onClick={() => setModal(null)}>
-                    取消
+                    {t("取消")}
                   </button>
                   <a
                     className="button primary"
@@ -1489,7 +1684,7 @@ export default function App() {
                     onClick={() => setModal(null)}
                   >
                     <Download size={14} />
-                    下载 CSV
+                    {t("下载 CSV")}
                   </a>
                 </div>
               </>
@@ -1497,52 +1692,61 @@ export default function App() {
             {modal === "help" && (
               <div className="help-content">
                 <p>
-                  用于运动捕捉数据的本地读取与检查。选择文件后，3D
-                  场景、信号曲线与事件时间轴同步显示。
+                  {t(
+                    "用于运动捕捉数据的本地读取与检查。选择文件后，3D 场景、信号曲线与事件时间轴同步显示。",
+                  )}
                 </p>
                 <div className="help-row">
-                  <strong>三维观察</strong>
+                  <strong>{t("三维观察")}</strong>
                   <span>
-                    左键拖动旋转，右键平移，滚轮缩放；点击标记点查看 XYZ 曲线。
+                    {t(
+                      "左键拖动旋转，右键平移，滚轮缩放；点击标记点查看 XYZ 曲线。",
+                    )}
                   </span>
                 </div>
                 <div className="help-row">
-                  <strong>信号与事件</strong>
+                  <strong>{t("信号与事件")}</strong>
                   <span>
-                    左侧切换标记点、模型输出或模拟信号。点击曲线或事件定位帧。
+                    {t(
+                      "左侧切换标记点、模型输出或模拟信号。点击曲线或事件定位帧。",
+                    )}
                   </span>
                 </div>
                 <div className="help-row">
-                  <strong>播放快捷键</strong>
+                  <strong>{t("播放快捷键")}</strong>
                   <span>
-                    Space 播放 / 暂停；← → 逐帧；Shift + ← → 跳 10 帧；Home /
-                    End 跳到区间两端。
+                    {t(
+                      "Space 播放 / 暂停；← → 逐帧；Shift + ← → 跳 10 帧；Home / End 跳到区间两端。",
+                    )}
                   </span>
                 </div>
                 <div className="help-row">
-                  <strong>观察与导出</strong>
+                  <strong>{t("观察与导出")}</strong>
                   <span>
-                    在信息面板设置帧区间，然后导出当前通道。CSV 保留完整采样率。
+                    {t(
+                      "在信息面板设置帧区间，然后导出当前通道。CSV 保留完整采样率。",
+                    )}
                   </span>
                 </div>
                 <div className="help-row">
-                  <strong>数据约定</strong>
+                  <strong>{t("数据约定")}</strong>
                   <span>
-                    默认 Z 轴向上，可切换 Y 轴。连线根据常用 Plug-in Gait
-                    标签推断；力台只展示轮廓，力与力矩可在模拟通道查看。
+                    {t(
+                      "默认 Z 轴向上，可切换 Y 轴。连线根据常用 Plug-in Gait 标签推断；力台只展示轮廓，力与力矩可在模拟通道查看。",
+                    )}
                   </span>
                 </div>
                 <p className="form-note">
-                  支持 Intel / MIPS 的浮点及整数
-                  C3D。当前版本不包含视频同步、C3D 编辑写回和力台 COP / GRF
-                  解算。
+                  {t(
+                    "支持 Intel / MIPS 的浮点及整数 C3D。当前版本不包含视频同步、C3D 编辑写回和力台 COP / GRF 解算。",
+                  )}
                 </p>
                 <div className="modal-actions">
                   <button
                     className="button primary"
                     onClick={() => setModal(null)}
                   >
-                    开始查看
+                    {t("开始查看")}
                   </button>
                 </div>
               </div>

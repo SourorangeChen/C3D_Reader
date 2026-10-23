@@ -26,7 +26,9 @@ test.beforeEach(async () => {
   const packaged = process.env.C3D_TEST_APP;
   application = await electron.launch({
     ...(packaged ? { executablePath: packaged } : {}),
-    args: packaged ? [] : ["."],
+    args: packaged
+      ? [`--user-data-dir=${folder}/electron-profile`]
+      : [".", `--user-data-dir=${folder}/electron-profile`],
     env: {
       ...process.env,
       C3D_READER_CONFIG_DIR: path.join(folder, "settings"),
@@ -117,7 +119,9 @@ test("cold launch with a C3D file wins over the default demo", async () => {
   const packaged = process.env.C3D_TEST_APP;
   application = await electron.launch({
     ...(packaged ? { executablePath: packaged } : {}),
-    args: packaged ? [fixture] : [".", fixture],
+    args: packaged
+      ? [`--user-data-dir=${folder}/cold-profile`, fixture]
+      : [".", `--user-data-dir=${folder}/cold-profile`, fixture],
     env: {
       ...process.env,
       C3D_READER_CONFIG_DIR: path.join(folder, "cold-settings"),
@@ -150,4 +154,87 @@ test("wrong extension is rejected and the service exits with the app", async () 
       }
     })
     .toBe(false);
+});
+
+test("native Settings menu, theme and language survive a full app restart", async () => {
+  await application.evaluate(({ Menu }) => {
+    const item = Menu.getApplicationMenu()!.items[0].submenu!.items.find(
+      (item) => item.accelerator === "CmdOrCtrl+,",
+    )!;
+    item.click();
+  });
+  await expect(
+    page.getByRole("dialog", { name: "设置", exact: true }),
+  ).toBeVisible();
+  await page.getByLabel("主题", { exact: true }).selectOption("light");
+  await page.getByLabel("界面语言").selectOption("en");
+  await page.getByRole("button", { name: "Done", exact: true }).click();
+  await page.getByRole("separator", { name: "Resize inspector" }).focus();
+  await page.keyboard.press("ArrowLeft");
+  await expect
+    .poll(async () =>
+      application.evaluate(({ Menu, nativeTheme }) => ({
+        file: Menu.getApplicationMenu()!.items[1].label,
+        theme: nativeTheme.themeSource,
+      })),
+    )
+    .toEqual({ file: "File", theme: "light" });
+  const previousOrigin = new URL(page.url()).origin;
+  await application.close();
+  const saved = JSON.parse(
+    await readFile(path.join(folder, "settings/preferences.json"), "utf8"),
+  );
+  expect(saved.language).toBe("en");
+  expect(saved.layout.inspector).toBe(230);
+  const packaged = process.env.C3D_TEST_APP;
+  application = await electron.launch({
+    ...(packaged ? { executablePath: packaged } : {}),
+    // A fresh browser profile proves persistence does not depend on localStorage.
+    args: packaged
+      ? [`--user-data-dir=${folder}/second-profile`]
+      : [".", `--user-data-dir=${folder}/second-profile`],
+    env: {
+      ...process.env,
+      C3D_READER_CONFIG_DIR: path.join(folder, "settings"),
+      C3D_READER_DATA: "",
+    },
+  });
+  page = await application.firstWindow();
+  await expect(
+    page.getByRole("button", { name: "Settings", exact: true }),
+  ).toBeVisible();
+  await expect(page.locator("html")).toHaveAttribute("data-theme", "light");
+  await expect(
+    page.getByRole("separator", { name: "Resize inspector" }),
+  ).toHaveAttribute("aria-valuenow", "230");
+  expect(new URL(page.url()).origin).not.toBe(previousOrigin);
+  await page.screenshot({ path: ".local/desktop-settings-en.png" });
+});
+
+test("desktop folder export uses the native download flow", async () => {
+  await application.evaluate(({ app }, file) => {
+    app.emit("open-file", { preventDefault() {} }, file);
+  }, fixture);
+  await expect(
+    page.getByRole("heading", { name: "拖入 文件.C3D" }),
+  ).toBeVisible();
+  const output = path.join(folder, "export.zip");
+  await application.evaluate(({ session }, destination) => {
+    session.defaultSession.on("will-download", (_event, item) => {
+      item.setSavePath(destination);
+    });
+  }, output);
+  await page.getByRole("button", { name: "批量导出 CSV", exact: true }).click();
+  await page.getByRole("button", { name: "开始导出", exact: true }).click();
+  await expect(page.getByRole("dialog")).toContainText("成功 1，失败 0");
+  await page.getByRole("link", { name: "下载 ZIP" }).click();
+  await expect
+    .poll(async () => {
+      try {
+        return (await readFile(output)).subarray(0, 2).toString();
+      } catch {
+        return "";
+      }
+    })
+    .toBe("PK");
 });

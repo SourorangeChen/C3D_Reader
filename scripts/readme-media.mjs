@@ -68,7 +68,11 @@ try {
   if (await page.locator(".error-text, .error-banner").count())
     throw new Error("Demo error.");
   const screenshot = await page.screenshot();
-  const screenData = `data:image/png;base64,${screenshot.toString("base64")}`;
+  const screens = { "zh-CN": `data:image/png;base64,${screenshot.toString("base64")}` };
+  await page.getByRole("button", { name: "设置", exact: true }).click();
+  await page.getByLabel("界面语言").selectOption("en");
+  await page.getByRole("button", { name: "Done", exact: true }).click();
+  screens.en = `data:image/png;base64,${(await page.screenshot()).toString("base64")}`;
   const fontData = (
     await readFile(
       join(
@@ -116,7 +120,7 @@ try {
       <p class="tagline">${zh ? "看见动作，<br>读懂数据。" : "Explore motion.<br>Inspect your data."}</p>
       <p class="description">${zh ? "本地 C3D 动作数据工作台<br>打开文件，查看信号，导出 CSV。" : "A local C3D motion workspace.<br>Open, inspect and export."}</p>
       <p class="platform"><b>macOS 14+ · Apple Silicon</b><br>${zh ? "开源 · 本地处理 · 只读访问" : "Open source · Local processing · Read-only"}</p></div>
-      <div class="preview"><div class="screen"><div class="chrome"><i></i><i></i><i></i><span>C3D Reader · Synthetic walking</span></div><img src="${screenData}"></div>
+      <div class="preview"><div class="screen"><div class="chrome"><i></i><i></i><i></i><span>C3D Reader · Synthetic walking</span></div><img src="${screens[lang]}"></div>
       <div class="features">${(zh ? ["3D 标记点", "同步信号与事件", "全采样率 CSV"] : ["3D markers", "Signals & events", "Full-rate CSV"]).map((t) => `<span><i></i>${t}</span>`).join("")}</div>
       <p class="note">${zh ? "真实界面 · 合成步行数据" : "Actual interface · Synthetic walking data"}</p></div></main></html>`);
     await page.evaluate(() => document.fonts.ready);
@@ -180,6 +184,17 @@ try {
   await app.getByRole("link", { name: "下载 CSV", exact: true }).click();
   const download = await downloadPromise;
   await download.saveAs(join(scratch, "demo-analog.csv"));
+  await chapter("Theme & language settings / 主题与语言设置");
+  await app.getByRole("button", { name: "设置", exact: true }).click();
+  await app.getByLabel("主题", { exact: true }).selectOption("light");
+  await app.getByLabel("界面语言").selectOption("en");
+  await demo.waitForTimeout(1800);
+  await app.getByRole("button", { name: "Done", exact: true }).click();
+  await chapter("Resizable workspace / 可调整工作区");
+  const divider = app.getByRole("separator", { name: "Resize 3D and signal panels" });
+  await divider.focus();
+  for (let i = 0; i < 5; i++) { await divider.press("ArrowUp"); await demo.waitForTimeout(120); }
+  await demo.waitForTimeout(1200);
   await chapter("Synthetic data only / 仅使用合成数据");
   await demo.waitForTimeout(900);
   const duration = (Date.now() - start) / 1000;

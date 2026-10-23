@@ -1,4 +1,4 @@
-# macOS desktop application — v0.2.1
+# macOS desktop application — v0.3.0
 
 The desktop build embeds the existing workbench in an Electron window and packages the Python service with PyInstaller. End users do not need Python, Node.js, a terminal or an external browser. The current deliverable targets Apple Silicon, macOS 14 and newer. It has an ad-hoc signature; it is not notarized or signed with an Apple Developer ID distribution certificate.
 
@@ -16,11 +16,17 @@ The service binds an OS-assigned loopback port and reports readiness over stdout
 
 Quitting closes the service, with a bounded forced-stop fallback. A parent-process watcher also shuts it down if the main process disappears. Settings and local error logs belong in the application support directory, not the app bundle. The existing browser workflow remains available separately.
 
+## Settings, layout and batch exports
+
+Settings is available from the app menu (⌘,) and the bottom-left toolbar. Themes cover native dialogs, controls, WebGL and charts. Interface language changes immediately; standard macOS menu roles retain the system language. The main process validates and atomically stores `preferences.json` separately from the selected folder. Persistence does not depend on the service's random origin. The browser version uses localStorage. Side-panel widths and the 3D / signal proportion are saved, constrained at small window sizes, and resettable. Dividers support pointer capture, cancellation, arrow keys, Home / End and Enter.
+
+Batch export snapshots the current directory and runs one background worker. It writes full-resolution CSVs in bounded chunks, stages one acquisition at a time, and creates a ZIP with a JSON manifest; errors expose filenames without absolute paths or raw OS errors. Corrupt acquisitions are skipped. CSV and ZIP writing are cancellable. Completed files expire after 30 idle minutes, are replaced by a new batch, and are removed at normal shutdown. Native downloads use the macOS save dialog. Exports preserve source labels and filenames, so they are not anonymous datasets.
+
 ## Verification on the development Mac
 
-- 26 Python/API/packaging regression tests, including authorization, direct file registration, invalid-drop preservation and package privacy checks.
-- 8 browser regression tests.
-- 5 Electron integration tests, run against both the development launcher and the **packaged app**: native-backed drag/drop, running-app Finder events, native dialog selection, cold launch with a file, invalid-extension handling and child-service shutdown.
+- 30 Python/API/packaging regression tests, including authorization, direct file registration, invalid-drop preservation and package privacy checks.
+- 12 browser regression tests.
+- 7 Electron integration tests, run against both the development launcher and the **packaged app**: native-backed drag/drop, running-app Finder events, native dialog selection, cold launch with a file, invalid-extension handling child-service shutdown, native Settings and preference persistence across app restarts / changing ports, and native batch ZIP downloads.
 - The packaged Python executable was tested with the synthetic walking acquisition: 800 point frames, 35 markers and 4 analog channels, generated from `backend/demo.py`. Its bundled frontend, final frame and full-rate CSV export were checked without participant files.
 - `codesign --verify --deep --strict` passed. This verifies local signature consistency, not Developer ID trust or notarization.
 

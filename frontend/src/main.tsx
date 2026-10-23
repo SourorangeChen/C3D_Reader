@@ -5,10 +5,13 @@ import "@fontsource/public-sans/500.css";
 import "@fontsource/public-sans/600.css";
 import "@fontsource/ibm-plex-mono/400.css";
 import App from "./App";
+import { PreferencesProvider } from "./Preferences";
 import "./style.css";
 
 createRoot(document.getElementById("root")!).render(
   <React.StrictMode>
-    <App />
+    <PreferencesProvider>
+      <App />
+    </PreferencesProvider>
   </React.StrictMode>,
 );

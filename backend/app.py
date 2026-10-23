@@ -15,12 +15,13 @@ from pydantic import BaseModel
 from starlette.middleware.trustedhost import TrustedHostMiddleware
 
 from .acquisition import Acquisition, clean_json
+from .batch_export import BatchExports
 from .demo import create_demo
 
 ROOT = Path(__file__).resolve().parents[1]
 CONFIG_DIR = Path(os.environ.get("C3D_READER_CONFIG_DIR", Path.home() / ".config" / "c3d-reader"))
 CONFIG_DIR.mkdir(parents=True, exist_ok=True)
-app = FastAPI(title="C3D Reader", version="0.2.1", docs_url=None, redoc_url=None)
+app = FastAPI(title="C3D Reader", version="0.3.0", docs_url=None, redoc_url=None)
 app.add_middleware(
     TrustedHostMiddleware,
     allowed_hosts=["localhost", "127.0.0.1", "[::1]", "testserver"],
@@ -37,6 +38,7 @@ demo_path = CONFIG_DIR / "synthetic-walking.c3d"
 if not demo_path.exists():
     create_demo(demo_path)
 files = {"demo": demo_path}
+batch_exports = BatchExports()
 
 
 @app.middleware("http")
@@ -158,7 +160,7 @@ def list_library():
                 (
                     p
                     for p in root.iterdir()
-                    if p.suffix.lower() == ".c3d" and not p.name.startswith(".")
+                    if p.suffix.lower() == ".c3d" and not p.name.startswith(".") and p.is_file()
                 ),
                 key=lambda p: p.name.lower(),
             )
@@ -198,6 +200,44 @@ def set_library(folder: Folder):
 @app.get("/api/files/{key}")
 def metadata(key: str):
     return clean_json(dict(id=key, **get_acq(key).metadata()))
+
+
+@app.post("/api/library/exports")
+def start_folder_export():
+    # Snapshot the current directory; changing the library cannot redirect a job.
+    listing = list_library()
+    with cache_lock:
+        sources = [files[item["id"]] for item in listing["files"]]
+    return batch_exports.start(sources)
+
+
+@app.get("/api/library/exports/{key}")
+def folder_export_status(key: str):
+    return batch_exports.snapshot(key)
+
+
+@app.delete("/api/library/exports/{key}")
+def cancel_folder_export(key: str):
+    return batch_exports.cancel(key)
+
+
+@app.get("/api/library/exports/{key}/download")
+def download_folder_export(key: str):
+    return BatchDownloadResponse(
+        batch_exports.download(key),
+        media_type="application/zip",
+        filename="c3d-folder-csv.zip",
+    )
+
+
+class BatchDownloadResponse(FileResponse):
+    async def __call__(self, scope, receive, send):
+        # FileResponse skips background callbacks on invalid Range requests and
+        # interrupted sends. A lease must be released on every response path.
+        try:
+            await super().__call__(scope, receive, send)
+        finally:
+            batch_exports.release()
 
 
 @app.get("/api/files/{key}/frames")
@@ -321,7 +361,7 @@ def export(
 
 @app.get("/api/health")
 def health():
-    return {"status": "ok", "version": "0.2.1"}
+    return {"status": "ok", "version": "0.3.0"}
 
 
 dist = ROOT / "frontend" / "dist"

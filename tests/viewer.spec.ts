@@ -83,7 +83,7 @@ test("invalid folder shows a recoverable error", async ({ page }) => {
     .getByRole("dialog")
     .getByRole("button", { name: "打开文件夹", exact: true })
     .click();
-  await expect(page.getByRole("alert")).toContainText("does not exist");
+  await expect(page.getByRole("alert")).toContainText("文件夹不存在");
   await page.getByRole("button", { name: "取消", exact: true }).click();
   await expect(
     page.getByRole("heading", { name: "Synthetic walking" }),
@@ -119,3 +119,194 @@ for (const [width, height] of [
     });
   });
 }
+
+test("settings switch themes and language immediately, persist, and follow the system", async ({
+  page,
+}) => {
+  const issues: string[] = [];
+  page.on("pageerror", (error) => issues.push(error.message));
+  await page.getByRole("button", { name: "设置", exact: true }).click();
+  await page.getByLabel("主题", { exact: true }).selectOption("light");
+  await expect(page.locator("html")).toHaveAttribute("data-theme", "light");
+  await page.getByLabel("界面语言").selectOption("en");
+  await expect(
+    page.getByRole("dialog", { name: "Settings", exact: true }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("combobox", { name: "Theme", exact: true }),
+  ).toHaveValue("light");
+  await page.getByRole("button", { name: "Done", exact: true }).click();
+  await expect(
+    page.getByRole("button", { name: "Next frame", exact: true }),
+  ).toBeVisible();
+  await page.getByRole("button", { name: "Next frame", exact: true }).click();
+  await expect(
+    page.getByRole("spinbutton", { name: "Current frame", exact: true }),
+  ).toHaveValue("2");
+  await page.screenshot({
+    path: ".local/screenshots/light-en.png",
+    fullPage: true,
+  });
+  await page.reload();
+  await expect(page.locator("html")).toHaveAttribute("lang", "en");
+  await expect(page.locator("html")).toHaveAttribute("data-theme", "light");
+  await page.getByRole("button", { name: "Settings", exact: true }).click();
+  await page.getByLabel("Theme", { exact: true }).selectOption("system");
+  await page.emulateMedia({ colorScheme: "dark" });
+  await expect(page.locator("html")).toHaveAttribute("data-theme", "dark");
+  await page.emulateMedia({ colorScheme: "light" });
+  await expect(page.locator("html")).toHaveAttribute("data-theme", "light");
+  // Focus remains inside the settings window and Escape restores the trigger.
+  await page.getByRole("button", { name: "Done", exact: true }).focus();
+  await page.keyboard.press("Tab");
+  await expect(
+    page.getByRole("button", { name: "Close dialog", exact: true }),
+  ).toBeFocused();
+  await page.screenshot({ path: ".local/screenshots/settings-light-en.png" });
+  await page.keyboard.press("Escape");
+  await expect(
+    page.getByRole("button", { name: "Settings", exact: true }),
+  ).toBeFocused();
+  expect(issues).toEqual([]);
+});
+
+test("drag and keyboard resize panels, persist sizes and reset the layout", async ({
+  page,
+}) => {
+  const library = page.getByRole("separator", { name: "调整文件面板宽度" });
+  const scene = page.getByRole("separator", { name: "调整三维与曲线区域" });
+  const inspector = page.getByRole("separator", { name: "调整信息面板宽度" });
+  const sceneBefore = await page.locator(".scene-panel").boundingBox();
+  const initial = await page.locator(".explorer").boundingBox();
+  const box = (await library.boundingBox())!;
+  await page.mouse.move(box.x + 4, box.y + 180);
+  await page.mouse.down();
+  await page.mouse.move(box.x + 69, box.y + 180, { steps: 8 });
+  await page.mouse.up();
+  await expect
+    .poll(async () => (await page.locator(".explorer").boundingBox())!.width)
+    .toBeCloseTo(initial!.width + 65, 0);
+  await inspector.focus();
+  await page.keyboard.press("ArrowLeft");
+  await expect(inspector).toHaveAttribute("aria-valuenow", "230");
+  await page
+    .getByRole("spinbutton", { name: "当前帧", exact: true })
+    .fill("100");
+  await inspector.focus();
+  await page.keyboard.press("End");
+  await page.keyboard.press("Home");
+  await page.keyboard.press("Enter");
+  await expect(
+    page.getByRole("spinbutton", { name: "当前帧", exact: true }),
+  ).toHaveValue("100");
+  await scene.focus();
+  await page.keyboard.press("ArrowUp");
+  await page.keyboard.press("ArrowUp");
+  await expect
+    .poll(
+      async () => (await page.locator(".scene-panel").boundingBox())!.height,
+    )
+    .toBeLessThan(sceneBefore!.height - 10);
+  const sceneBox = (await scene.boundingBox())!;
+  await page.mouse.move(sceneBox.x + 100, sceneBox.y + 4);
+  await page.mouse.down();
+  await page.mouse.move(sceneBox.x + 100, sceneBox.y - 25, { steps: 5 });
+  // A cancelled gesture must release state and permit the next drag.
+  await scene.dispatchEvent("pointercancel", { pointerId: 1 });
+  await page.mouse.up();
+  await expect(scene).not.toHaveClass(/resizing/);
+  await page.reload();
+  await expect(library).toHaveAttribute("aria-valuenow", "295");
+  await expect(inspector).toHaveAttribute("aria-valuenow", "220");
+  await library.dblclick({ position: { x: 4, y: 160 } });
+  await expect(library).toHaveAttribute("aria-valuenow", "230");
+  await page.getByRole("button", { name: "设置", exact: true }).click();
+  await page.getByRole("button", { name: "恢复默认布局" }).click();
+  await page.getByRole("button", { name: "完成", exact: true }).click();
+  await expect(inspector).toHaveAttribute("aria-valuenow", "220");
+  await expect(scene).toHaveAttribute("aria-valuenow", "0.67");
+});
+
+test("folder export includes files hidden by search and downloads a ZIP", async ({
+  page,
+}) => {
+  const { execFileSync } = await import("node:child_process");
+  const { mkdtemp, rm } = await import("node:fs/promises");
+  const { tmpdir } = await import("node:os");
+  const path = await import("node:path");
+  const folder = await mkdtemp(path.join(tmpdir(), "c3d-batch-browser-"));
+  try {
+    execFileSync(process.env.CI ? "python3" : ".venv/bin/python", [
+      "-c",
+      "from backend.demo import create_demo; import sys; from pathlib import Path; p=Path(sys.argv[1]); create_demo(p/'合成 walking.C3D'); create_demo(p/'second.c3d')",
+      folder,
+    ]);
+    await page.getByRole("button", { name: "打开文件夹", exact: true }).click();
+    await page.getByLabel("文件夹路径").fill(folder);
+    await page
+      .getByRole("dialog")
+      .getByRole("button", { name: "打开文件夹", exact: true })
+      .click();
+    await expect(page.locator(".file-row")).toHaveCount(2);
+    await page
+      .getByRole("textbox", { name: "搜索文件", exact: true })
+      .fill("second");
+    await expect(page.locator(".file-row")).toHaveCount(1);
+    await page
+      .getByRole("button", { name: "批量导出 CSV", exact: true })
+      .click();
+    await page.getByRole("button", { name: "开始导出", exact: true }).click();
+    // Closing a progress window does not destroy the background job.
+    await page.getByRole("button", { name: "关闭窗口", exact: true }).click();
+    await page
+      .getByRole("button", { name: "批量导出 CSV", exact: true })
+      .click();
+    await expect(page.getByRole("dialog")).toContainText("成功 2，失败 0");
+    const download = page.waitForEvent("download");
+    await page.getByRole("link", { name: "下载 ZIP" }).click();
+    const result = await download;
+    expect(result.suggestedFilename()).toBe("c3d-folder-csv.zip");
+    expect(await result.failure()).toBeNull();
+    await page.screenshot({ path: ".local/screenshots/batch-export.png" });
+  } finally {
+    await rm(folder, { recursive: true, force: true });
+  }
+});
+
+test("English narrow layouts keep drawers and settings accessible", async ({
+  page,
+}) => {
+  await page.getByRole("button", { name: "设置", exact: true }).click();
+  await page.getByLabel("界面语言").selectOption("en");
+  await page.getByRole("button", { name: "Done", exact: true }).click();
+  for (const width of [1280, 768, 390]) {
+    await page.setViewportSize({ width, height: width === 1280 ? 720 : 900 });
+    await page.reload();
+    await expect(
+      page.getByRole("heading", { name: "Synthetic walking" }),
+    ).toBeVisible();
+    if (!(await page.locator(".explorer").isVisible()))
+      await page
+        .getByRole("button", { name: "Files and channels", exact: true })
+        .click();
+    await expect(
+      page.getByRole("complementary", { name: "Files and channels" }),
+    ).toBeVisible();
+    await expect
+      .poll(() =>
+        page.evaluate(() => document.documentElement.scrollWidth <= innerWidth),
+      )
+      .toBe(true);
+    await page
+      .getByRole("button", { name: "Files and channels", exact: true })
+      .click();
+    await page.getByRole("button", { name: "Settings", exact: true }).click();
+    await expect(page.getByLabel("Theme", { exact: true })).toBeVisible();
+    await page.getByLabel("Theme", { exact: true }).selectOption("light");
+    await page.screenshot({
+      path: `.local/screenshots/settings-en-${width}.png`,
+      fullPage: true,
+    });
+    await page.getByRole("button", { name: "Done", exact: true }).click();
+  }
+});

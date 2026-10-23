@@ -14,5 +14,13 @@ contextBridge.exposeInMainWorld("c3dDesktop", {
     ipcRenderer.on("c3d:opened", listener);
     return () => ipcRenderer.removeListener("c3d:opened", listener);
   },
+  getPreferences: () => ipcRenderer.invoke("c3d:get-preferences"),
+  setPreferences: (preferences) =>
+    ipcRenderer.invoke("c3d:set-preferences", preferences),
+  onSettings: (callback) => {
+    const listener = () => callback();
+    ipcRenderer.on("c3d:settings", listener);
+    return () => ipcRenderer.removeListener("c3d:settings", listener);
+  },
   ready: () => ipcRenderer.invoke("c3d:ready"),
 });

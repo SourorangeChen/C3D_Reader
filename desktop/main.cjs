@@ -1,11 +1,56 @@
-const { app, BrowserWindow, dialog, ipcMain, Menu } = require("electron");
+const {
+  app,
+  BrowserWindow,
+  dialog,
+  ipcMain,
+  Menu,
+  nativeTheme,
+} = require("electron");
 const { spawn } = require("node:child_process");
 const { randomBytes } = require("node:crypto");
-const { createWriteStream, mkdirSync, existsSync } = require("node:fs");
+const {
+  createWriteStream,
+  mkdirSync,
+  existsSync,
+  readFileSync,
+  writeFileSync,
+  renameSync,
+} = require("node:fs");
 const path = require("node:path");
 const readline = require("node:readline");
 
 let mainWindow, service, baseURL, serviceToken, logStream;
+let preferences = {
+  theme: "dark",
+  language: "zh-CN",
+  layout: { library: 230, inspector: 220, scene: 0.67 },
+};
+let preferencesPath, preferencesTimer;
+const tr = (zh, en) => (preferences.language === "en" ? en : zh);
+function savePreferences() {
+  clearTimeout(preferencesTimer);
+  if (!preferencesPath) return;
+  writeFileSync(preferencesPath + ".tmp", JSON.stringify(preferences), {
+    mode: 0o600,
+  });
+  renameSync(preferencesPath + ".tmp", preferencesPath);
+}
+function validatePreferences(value) {
+  const p = value || {};
+  const number = (v, min, max, fallback) =>
+    typeof v === "number" && Number.isFinite(v)
+      ? Math.max(min, Math.min(max, v))
+      : fallback;
+  return {
+    theme: ["dark", "light", "system"].includes(p.theme) ? p.theme : "dark",
+    language: p.language === "en" ? "en" : "zh-CN",
+    layout: {
+      library: number(p.layout?.library, 190, 420, 230),
+      inspector: number(p.layout?.inspector, 200, 400, 220),
+      scene: number(p.layout?.scene, 0.3, 0.82, 0.67),
+    },
+  };
+}
 let rendererReady = false,
   quitting = false,
   pendingPaths = [],
@@ -99,7 +144,7 @@ function flushFiles() {
 
 async function chooseFile() {
   const result = await dialog.showOpenDialog(mainWindow, {
-    title: "打开 C3D 采集文件",
+    title: tr("打开 C3D 采集文件", "Open C3D recording"),
     properties: ["openFile"],
     filters: [{ name: "C3D Motion Capture", extensions: ["c3d"] }],
   });
@@ -109,7 +154,7 @@ async function chooseFile() {
 
 async function chooseFolder() {
   const result = await dialog.showOpenDialog(mainWindow, {
-    title: "选择 C3D 数据文件夹",
+    title: tr("选择 C3D 数据文件夹", "Choose C3D data folder"),
     properties: ["openDirectory"],
   });
   if (!result.canceled && result.filePaths[0]) {
@@ -196,6 +241,16 @@ function launchService() {
 }
 
 async function start() {
+  const configDir =
+    process.env.C3D_READER_CONFIG_DIR || app.getPath("userData");
+  mkdirSync(configDir, { recursive: true });
+  preferencesPath = path.join(configDir, "preferences.json");
+  try {
+    preferences = validatePreferences(
+      JSON.parse(readFileSync(preferencesPath, "utf8")),
+    );
+  } catch {}
+  nativeTheme.themeSource = preferences.theme;
   await launchService();
   mainWindow = new BrowserWindow({
     title: "C3D Reader",
@@ -203,7 +258,7 @@ async function start() {
     height: 940,
     minWidth: 860,
     minHeight: 680,
-    backgroundColor: "#171719",
+    backgroundColor: nativeTheme.shouldUseDarkColors ? "#171719" : "#f3f4f6",
     show: false,
     autoHideMenuBar: true,
     webPreferences: {
@@ -253,12 +308,46 @@ async function start() {
     rendererReady = true;
     flushFiles();
   });
+  ipcMain.handle("c3d:get-preferences", (event) => {
+    checkSender(event);
+    return preferences;
+  });
+  ipcMain.handle("c3d:set-preferences", (event, value) => {
+    checkSender(event);
+    const previousLanguage = preferences.language;
+    preferences = validatePreferences(value);
+    nativeTheme.themeSource = preferences.theme;
+    if (preferences.language !== previousLanguage) installMenu();
+    clearTimeout(preferencesTimer);
+    preferencesTimer = setTimeout(() => {
+      try {
+        savePreferences();
+      } catch {}
+    }, 250);
+  });
+  installMenu();
+  await mainWindow.loadURL(baseURL);
+  mainWindow.webContents.session.on("will-download", (_event, item) => {
+    item.setSaveDialogOptions({
+      title: tr("导出 C3D 数据", "Export C3D data"),
+      defaultPath: path.join(app.getPath("downloads"), item.getFilename()),
+    });
+  });
+}
+
+function installMenu() {
   Menu.setApplicationMenu(
     Menu.buildFromTemplate([
       {
         label: "C3D Reader",
         submenu: [
           { role: "about" },
+          { type: "separator" },
+          {
+            label: tr("设置…", "Settings…"),
+            accelerator: "CmdOrCtrl+,",
+            click: () => mainWindow?.webContents.send("c3d:settings"),
+          },
           { type: "separator" },
           { role: "hide" },
           { role: "hideOthers" },
@@ -268,15 +357,15 @@ async function start() {
         ],
       },
       {
-        label: "文件",
+        label: tr("文件", "File"),
         submenu: [
           {
-            label: "打开 C3D 文件…",
+            label: tr("打开 C3D 文件…", "Open C3D file…"),
             accelerator: "CmdOrCtrl+O",
             click: () => void chooseFile().catch(showOpenError),
           },
           {
-            label: "打开数据文件夹…",
+            label: tr("打开数据文件夹…", "Open data folder…"),
             accelerator: "CmdOrCtrl+Shift+O",
             click: () => void chooseFolder().catch(showOpenError),
           },
@@ -291,7 +380,7 @@ async function start() {
       },
       { role: "editMenu" },
       {
-        label: "视图",
+        label: tr("视图", "View"),
         submenu: [
           { role: "resetZoom" },
           { role: "zoomIn" },
@@ -303,13 +392,6 @@ async function start() {
       { role: "windowMenu" },
     ]),
   );
-  await mainWindow.loadURL(baseURL);
-  mainWindow.webContents.session.on("will-download", (_event, item) => {
-    item.setSaveDialogOptions({
-      title: "导出 C3D 信号 CSV",
-      defaultPath: path.join(app.getPath("downloads"), item.getFilename()),
-    });
-  });
 }
 
 function showOpenError(error) {
@@ -317,6 +399,9 @@ function showOpenError(error) {
 }
 app.on("window-all-closed", () => app.quit());
 app.on("before-quit", (event) => {
+  try {
+    savePreferences();
+  } catch {}
   if (!service || service.exitCode !== null || quitting) return;
   event.preventDefault();
   quitting = true;

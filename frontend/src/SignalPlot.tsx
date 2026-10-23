@@ -1,7 +1,8 @@
+import { usePreferences } from "./Preferences";
 import { memo, useEffect, useMemo, useRef, useState } from "react";
 import type { GaitEvent, SeriesData } from "./types";
 
-const COLORS = ["#4a8ad6", "#c2c5cc", "#d9a441"];
+const COLORS = ["var(--signal-x)", "var(--signal-y)", "var(--signal-z)"];
 export const SignalPlot = memo(function SignalPlot({
   data,
   time,
@@ -15,6 +16,7 @@ export const SignalPlot = memo(function SignalPlot({
   events: GaitEvent[];
   axes: boolean[];
 }) {
+  const { resolvedTheme, t } = usePreferences();
   const host = useRef<HTMLDivElement>(null);
   const [width, setWidth] = useState(600);
   const [height, setHeight] = useState(185);
@@ -92,7 +94,7 @@ export const SignalPlot = memo(function SignalPlot({
         height={height}
         viewBox={`0 0 ${width} ${height}`}
         role="img"
-        aria-label="同步信号曲线，横轴为相对时间（秒）"
+        aria-label={t("同步信号曲线，横轴为相对时间（秒）")}
         onPointerDown={seek}
         onPointerMove={(e) => {
           if (!data) return;
@@ -121,13 +123,13 @@ export const SignalPlot = memo(function SignalPlot({
                   x2={width - right}
                   y1={plot.y(v)}
                   y2={plot.y(v)}
-                  stroke="#29282e"
+                  stroke="var(--chart-grid)"
                 />
                 <text
                   x={left - 10}
                   y={plot.y(v) + 4}
                   textAnchor="end"
-                  fill="#999ba3"
+                  fill="var(--muted)"
                   fontSize="11"
                 >
                   {Math.abs(v) >= 10000
@@ -144,7 +146,7 @@ export const SignalPlot = memo(function SignalPlot({
                   x={plot.x(t)}
                   y={height - 8}
                   textAnchor={v === 0 ? "start" : v === 4 ? "end" : "middle"}
-                  fill="#999ba3"
+                  fill="var(--muted)"
                   fontSize="11"
                 >
                   {t.toFixed(2)} s
@@ -186,12 +188,12 @@ export const SignalPlot = memo(function SignalPlot({
               x2={plot.x(Math.max(data.start, Math.min(data.stop, time)))}
               y1="2"
               y2={height - bottom}
-              stroke="#fff"
+              stroke="var(--text)"
               strokeWidth="1"
             />
             <path
               d={`M${plot.x(time) - 3},1 L${plot.x(time) + 3},1 L${plot.x(time)},6 Z`}
-              fill="#fff"
+              fill="var(--text)"
             />
             {hover != null && (
               <line
@@ -205,8 +207,8 @@ export const SignalPlot = memo(function SignalPlot({
             )}
           </>
         ) : (
-          <text x={width / 2} y="85" textAnchor="middle" fill="#999ba3">
-            {data ? "当前区间没有有效信号" : "正在读取信号…"}
+          <text x={width / 2} y="85" textAnchor="middle" fill="var(--muted)">
+            {data ? t("当前区间没有有效信号") : t("正在读取信号…")}
           </text>
         )}
       </svg>
