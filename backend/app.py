@@ -21,7 +21,7 @@ from .demo import create_demo
 ROOT = Path(__file__).resolve().parents[1]
 CONFIG_DIR = Path(os.environ.get("C3D_READER_CONFIG_DIR", Path.home() / ".config" / "c3d-reader"))
 CONFIG_DIR.mkdir(parents=True, exist_ok=True)
-app = FastAPI(title="C3D Reader", version="0.3.0", docs_url=None, redoc_url=None)
+app = FastAPI(title="C3D Reader", version="0.3.1", docs_url=None, redoc_url=None)
 app.add_middleware(
     TrustedHostMiddleware,
     allowed_hosts=["localhost", "127.0.0.1", "[::1]", "testserver"],
@@ -348,20 +348,33 @@ def export(
     ids: str = "0",
     start: int = 0,
     stop: int = None,
+    scope: str = Query("selected", pattern="^(selected|all|com)$"),
 ):
     acq = get_acq(key)
     start, stop = frame_range(acq, start, stop)
-    indices = indices_for(acq, kind, ids)
+    if scope == "all":
+        indices = list(range(acq.npoints if kind == "point" else acq.nanalog))
+        filename = "c3d-all-points.csv" if kind == "point" else "c3d-all-analog.csv"
+    elif scope == "com":
+        if kind != "point":
+            raise HTTPException(400, "COM export requires point data.")
+        indices = [i for i, role in enumerate(acq.point_roles) if role]
+        filename = "c3d-com.csv"
+    else:
+        indices = indices_for(acq, kind, ids)
+        filename = f"c3d-{kind}-export.csv"
+    if not indices:
+        raise HTTPException(400, "No matching source channels are available for this export.")
     return StreamingResponse(
         acq.csv_rows(kind, indices, start, stop),
         media_type="text/csv",
-        headers={"Content-Disposition": f'attachment; filename="c3d-{kind}-export.csv"'},
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
     )
 
 
 @app.get("/api/health")
 def health():
-    return {"status": "ok", "version": "0.3.0"}
+    return {"status": "ok", "version": "0.3.1"}
 
 
 dist = ROOT / "frontend" / "dist"

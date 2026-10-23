@@ -1,4 +1,10 @@
-export type Point = { id: number; label: string; kind: string; unit: string };
+export type Point = {
+  id: number;
+  label: string;
+  kind: string;
+  unit: string;
+  role?: "centerOfMass" | "centerOfMassFloor" | null;
+};
 export type Analog = { id: number; label: string; unit: string };
 export type GaitEvent = {
   label: string;

@@ -7,10 +7,25 @@ loading a trial into RAM. Vicon's numbered parameter arrays are concatenated.
 import csv
 import io
 import math
+import re
 from pathlib import Path
 
 import c3d
 import numpy as np
+
+
+def point_role(label):
+    """Recognize named, source-provided whole-body COM channels, not estimates.
+
+    Vicon subject prefixes are retained in labels/exports. Exact normalized
+    suffixes avoid matching unrelated markers or segment-specific COM labels.
+    """
+    name = re.sub(r"[^a-z]", "", label.rsplit(":", 1)[-1].lower())
+    if name in ("centreofmass", "centerofmass", "com"):
+        return "centerOfMass"
+    if name in ("centreofmassfloor", "centerofmassfloor", "comfloor"):
+        return "centerOfMassFloor"
+    return None
 
 
 def clean_json(value):
@@ -83,6 +98,7 @@ class Acquisition:
             raise ValueError("Truncated C3D data: file is shorter than its declared frame range.")
         self.data = np.memmap(self.path, dtype=dtype, mode="r", offset=offset, shape=(self.count,))
         self.point_labels = self.labels("POINT:LABELS", self.npoints, "Point")
+        self.point_roles = [point_role(label) for label in self.point_labels]
         self.analog_labels = self.labels("ANALOG:LABELS", self.nanalog, "Analog")
         self.point_unit = self.text("POINT:UNITS", "mm")
         self.analog_units = self.labels("ANALOG:UNITS", self.nanalog, "")
@@ -287,7 +303,9 @@ class Acquisition:
             duration=self.count / self.rate,
             pointUnit=self.point_unit,
             points=[
-                dict(id=i, label=n, kind=self.kinds[i], unit=self.units[i])
+                dict(
+                    id=i, label=n, kind=self.kinds[i], unit=self.units[i], role=self.point_roles[i]
+                )
                 for i, n in enumerate(self.point_labels)
             ],
             analogs=[

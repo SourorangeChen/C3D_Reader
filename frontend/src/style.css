@@ -2344,3 +2344,31 @@ button:hover:not(:disabled) {
     display: none;
   }
 }
+.export-options {
+  display: grid;
+  gap: 9px;
+  margin: 19px 0;
+}
+.export-options label {
+  font-size: 12px;
+  margin-top: 5px;
+}
+.export-options select {
+  width: 100%;
+  height: 38px;
+  padding: 0 10px;
+  min-width: 0;
+  text-overflow: ellipsis;
+}
+.com-summary {
+  border-top: 1px solid var(--rule);
+  padding-top: 17px;
+  font-size: 12px;
+}
+.com-summary strong {
+  font-weight: 500;
+}
+.com-summary p {
+  margin-top: 8px;
+  overflow-wrap: anywhere;
+}

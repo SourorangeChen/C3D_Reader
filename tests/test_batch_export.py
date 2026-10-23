@@ -178,3 +178,24 @@ def test_download_errors_release_the_lease(client, tmp_path):
     asyncio.run(disconnected())
     next_job = client.post("/api/library/exports").json()
     assert wait_done(client, next_job["id"])["status"] == "ready"
+
+
+def test_folder_csv_retains_com_channels_and_roles(client, tmp_path):
+    create_demo(tmp_path / "synthetic-com.c3d", include_com=True)
+    client.post("/api/library", json={"path": str(tmp_path)})
+    job = client.post("/api/library/exports").json()
+    assert wait_done(client, job["id"])["status"] == "ready"
+    response = client.get(f"/api/library/exports/{job['id']}/download")
+    with zipfile.ZipFile(io.BytesIO(response.content)) as archive:
+        record = json.loads(archive.read("manifest.json"))["files"][0]
+        assert record["points"][-2]["role"] == "centerOfMass"
+        assert record["points"][-1]["role"] == "centerOfMassFloor"
+        rows = list(
+            csv.reader(
+                io.StringIO(archive.read(record["directory"] + "/points.csv").decode("utf-8-sig"))
+            )
+        )
+        assert len(rows) == 801 and len(rows[0]) == 2 + 37 * 4
+        assert "Demo:CentreOfMass:Z (mm)" in rows[0]
+        assert "Demo:CentreOfMassFloor:Z (mm)" in rows[0]
+        assert float(rows[1][rows[0].index("Demo:CentreOfMassFloor:Z (mm)")]) == 0

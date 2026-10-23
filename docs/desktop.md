@@ -1,4 +1,4 @@
-# macOS desktop application — v0.3.0
+# macOS desktop application — v0.3.1
 
 The desktop build embeds the existing workbench in an Electron window and packages the Python service with PyInstaller. End users do not need Python, Node.js, a terminal or an external browser. The current deliverable targets Apple Silicon, macOS 14 and newer. It has an ad-hoc signature; it is not notarized or signed with an Apple Developer ID distribution certificate.
 
@@ -22,11 +22,13 @@ Settings is available from the app menu (⌘,) and the bottom-left toolbar. Them
 
 Batch export snapshots the current directory and runs one background worker. It writes full-resolution CSVs in bounded chunks, stages one acquisition at a time, and creates a ZIP with a JSON manifest; errors expose filenames without absolute paths or raw OS errors. Corrupt acquisitions are skipped. CSV and ZIP writing are cancellable. Completed files expire after 30 idle minutes, are replaced by a new batch, and are removed at normal shutdown. Native downloads use the macOS save dialog. Exports preserve source labels and filenames, so they are not anonymous datasets.
 
+The main CSV dialog now defaults to all point channels and the full acquisition. It offers a COM-only mode, the selected channel, all analog channels, and an optional observation range. COM identification uses exact normalized source labels, with 3D COM and floor projection distinguished; it does not estimate or recompute values. Existing direct export links retain selected-channel behavior for compatibility.
+
 ## Verification on the development Mac
 
-- 30 Python/API/packaging regression tests, including authorization, direct file registration, invalid-drop preservation and package privacy checks.
-- 12 browser regression tests.
-- 7 Electron integration tests, run against both the development launcher and the **packaged app**: native-backed drag/drop, running-app Finder events, native dialog selection, cold launch with a file, invalid-extension handling child-service shutdown, native Settings and preference persistence across app restarts / changing ports, and native batch ZIP downloads.
+- 42 Python/API/packaging regression tests, including authorization, direct file registration, invalid-drop preservation and package privacy checks.
+- 14 browser regression tests.
+- 8 Electron integration tests, run against both the development launcher and the **packaged app**: native-backed drag/drop, running-app Finder events, native dialog selection, cold launch with a file, invalid-extension handling child-service shutdown, native Settings and preference persistence across app restarts / changing ports, native batch ZIP downloads, and full-point CSV downloads including source COM.
 - The packaged Python executable was tested with the synthetic walking acquisition: 800 point frames, 35 markers and 4 analog channels, generated from `backend/demo.py`. Its bundled frontend, final frame and full-rate CSV export were checked without participant files.
 - `codesign --verify --deep --strict` passed. This verifies local signature consistency, not Developer ID trust or notarization.
 

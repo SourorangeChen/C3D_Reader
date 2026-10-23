@@ -238,3 +238,45 @@ test("desktop folder export uses the native download flow", async () => {
     })
     .toBe("PK");
 });
+
+test("native CSV download includes every point and source COM by default", async () => {
+  const comFixture = path.join(folder, "synthetic-com.c3d");
+  execFileSync(path.resolve(".venv/bin/python"), [
+    "-c",
+    "from backend.demo import create_demo; import sys; create_demo(sys.argv[1], include_com=True)",
+    comFixture,
+  ]);
+  await application.evaluate(({ app }, file) => {
+    app.emit("open-file", { preventDefault() {} }, file);
+  }, comFixture);
+  await expect(
+    page.getByRole("heading", { name: "synthetic-com.c3d" }),
+  ).toBeVisible();
+  const output = path.join(folder, "all-points.csv");
+  await application.evaluate(({ session }, destination) => {
+    session.defaultSession.on("will-download", (_event, item) => {
+      item.setSavePath(destination);
+    });
+  }, output);
+  await page.getByRole("button", { name: "导出 CSV", exact: true }).click();
+  await expect(page.getByLabel("导出内容", { exact: true })).toHaveValue(
+    "all-points",
+  );
+  await expect(page.locator(".com-summary")).toContainText(
+    "Demo:CentreOfMassFloor",
+  );
+  await page.getByRole("link", { name: "下载 CSV", exact: true }).click();
+  await expect
+    .poll(async () => {
+      try {
+        return (await readFile(output, "utf8")).trim().split(/\r?\n/).length;
+      } catch {
+        return 0;
+      }
+    })
+    .toBe(801);
+  const header = (await readFile(output, "utf8")).split(/\r?\n/)[0];
+  expect(header.split(",")).toHaveLength(2 + 37 * 4);
+  expect(header).toContain("Demo:CentreOfMass:Z (mm)");
+  expect(header).toContain("Demo:CentreOfMassFloor:Z (mm)");
+});

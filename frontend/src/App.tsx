@@ -2,6 +2,7 @@ import { usePreferences } from "./Preferences";
 import { defaultLayout } from "./Preferences";
 import { PanelDivider } from "./PanelDivider";
 import { BatchExportDialog } from "./BatchExportDialog";
+import { ExportOptions } from "./ExportOptions";
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
   Activity,
@@ -536,7 +537,7 @@ export default function App() {
           <span>
             C3D <strong>Reader</strong>
           </span>
-          <span className="version">0.3.0</span>
+          <span className="version">0.3.1</span>
         </div>
         <div className="workspace-name">
           Motion workspace <span className="header-slash">/</span>{" "}
@@ -1635,59 +1636,12 @@ export default function App() {
               </form>
             )}
             {modal === "export" && meta && (
-              <>
-                <p>
-                  {t("导出")}
-                  <strong>{selectedLabel}</strong>
-                  {t(
-                    "，保留观察区间内的全部采样点、原始帧号、相对时间和物理单位。",
-                  )}
-                </p>
-                <dl className="export-details">
-                  <div>
-                    <dt>{t("帧区间（含两端）")}</dt>
-                    <dd>
-                      {roi[0] + meta.firstFrame} – {roi[1] + meta.firstFrame}
-                    </dd>
-                  </div>
-                  <div>
-                    <dt>{t("采样点数")}</dt>
-                    <dd>
-                      {countFormat.format(
-                        (roi[1] - roi[0] + 1) *
-                          (selection.kind === "analog"
-                            ? meta.samplesPerFrame
-                            : 1),
-                      )}
-                    </dd>
-                  </div>
-                  <div>
-                    <dt>{t("内容")}</dt>
-                    <dd>
-                      {selection.kind === "point"
-                        ? "X / Y / Z / residual"
-                        : selectedUnit || t("模拟信号")}
-                    </dd>
-                  </div>
-                </dl>
-                <p className="form-note">
-                  {t("缺失坐标留空，residual 为 −1。导出不会修改原文件。")}
-                </p>
-                <div className="modal-actions">
-                  <button className="button" onClick={() => setModal(null)}>
-                    {t("取消")}
-                  </button>
-                  <a
-                    className="button primary"
-                    href={`/api/files/${meta.id}/export?kind=${selection.kind}&ids=${selection.id}&start=${roi[0]}&stop=${roi[1] + 1}`}
-                    download
-                    onClick={() => setModal(null)}
-                  >
-                    <Download size={14} />
-                    {t("下载 CSV")}
-                  </a>
-                </div>
-              </>
+              <ExportOptions
+                meta={meta}
+                selection={selection}
+                roi={roi}
+                onClose={() => setModal(null)}
+              />
             )}
             {modal === "help" && (
               <div className="help-content">
@@ -1724,7 +1678,7 @@ export default function App() {
                   <strong>{t("观察与导出")}</strong>
                   <span>
                     {t(
-                      "在信息面板设置帧区间，然后导出当前通道。CSV 保留完整采样率。",
+                      "导出 CSV 默认包含全部点位和完整采集；也可选择 COM、当前通道或观察区间。CSV 保留完整采样率。",
                     )}
                   </span>
                 </div>

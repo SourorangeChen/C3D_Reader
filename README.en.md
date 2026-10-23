@@ -24,7 +24,7 @@ Recorded from the real interface using the built-in synthetic walking acquisitio
 - XYZ plots, model outputs such as joint angles / forces / moments / powers, and analog signals including EMG / IMU channels.
 - Synchronized timeline, original frame numbers, 0.1×–2× playback, looping, event navigation and observation intervals.
 - C3D parameter inspector with groups, dimensions and raw values; force platform outlines in the 3D view.
-- CSV export of the current channel and observation interval, preserving full sampling rates and physical units.
+- CSV export defaults to every point in the current file, including model outputs and source COM. Choose COM / floor projections, a selected channel or all analog channels, and a full recording or current frame range.
 - Folder-wide CSV export of all point / model and analog channels at full resolution, with progress, cancellation and a failure manifest.
 - Settings for dark / light / system themes and Chinese / English, saved automatically.
 - A larger default 3D area and draggable dividers for both side panels and the 3D / signal split, with remembered sizes.
@@ -36,7 +36,7 @@ Recorded from the real interface using the built-in synthetic walking acquisitio
 
 ### macOS desktop app (recommended)
 
-Download `C3D-Reader-0.3.0-macOS-arm64.dmg` from [Releases](https://github.com/SourorangeChen/C3D_Reader/releases). Double-click the disk image, drag **C3D Reader.app** onto the **Applications** shortcut, then launch it from Applications. Eject the disk image after installation. A ZIP archive is also available. The current build requires **Apple Silicon (M1 / M2 / M3 / M4 and later) and macOS 14+**. An Intel Mac build is not available.
+Download `C3D-Reader-0.3.1-macOS-arm64.dmg` from [Releases](https://github.com/SourorangeChen/C3D_Reader/releases). Double-click the disk image, drag **C3D Reader.app** onto the **Applications** shortcut, then launch it from Applications. Eject the disk image after installation. A ZIP archive is also available. The current build requires **Apple Silicon (M1 / M2 / M3 / M4 and later) and macOS 14+**. An Intel Mac build is not available.
 
 The desktop app bundles Python, the reading engine, Chromium and frontend assets. You do not need to install Python or Node.js, connect to the internet, or start a web service yourself.
 
@@ -87,7 +87,15 @@ Press **Ctrl+C** in the terminal running the program to stop the service. It lis
 | Step frames | ← / →; hold Shift to jump 10 frames |
 | Jump to interval boundaries | Home / End |
 | Seek to a sample | Click a plot or event marker, or enter an original frame number |
-| Export an interval | Set the first and last frames in the information panel, then click **导出 CSV (Export CSV)** |
+| Export current file | Click **Export CSV**; all points and the full recording are selected by default. Choose the current frame range if needed |
+
+### Export all points and COM from one file
+
+Click **Export CSV** in the main workspace. It defaults to **all points and the full recording**, so markers do not need to be exported individually. Each point CSV has one row per frame and columns for X / Y / Z / residual, with original labels, units, frame numbers and relative time. Channel search, hidden markers and plot downsampling do not limit the export.
+
+**Export contents** also offers **COM and floor projections only**, **Selected channel**, and **All analog channels**. **Export range** can be changed to the current frame range.
+
+COM is read verbatim from source C3D channels named `CentreOfMass`, `CenterOfMass`, `COM`, or corresponding `Floor` variants, allowing subject prefixes, case differences, spaces and underscores. 3D COM and its floor projection remain separate; see the [Vicon Plug-in Gait reference guide](https://help.vicon.com/download/attachments/406490967/Plug-in%20Gait%20Reference%20Guide.pdf) for projection conventions. The reader does not recalculate COM or substitute a marker average. Missing COM is explicitly reported. Custom-named channels remain included in **All points** even when not recognized as COM.
 
 ### Batch CSV structure
 

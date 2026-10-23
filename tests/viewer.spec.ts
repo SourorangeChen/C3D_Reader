@@ -43,6 +43,7 @@ test("analog selection, original sample-rate CSV and parameters", async ({
   await expect(page.locator(".signal-heading")).toContainText("Left force Fz");
   await expect(page.locator(".signal-heading")).toContainText("1000 Hz");
   await page.getByRole("button", { name: "导出 CSV", exact: true }).click();
+  await page.getByLabel("导出内容", { exact: true }).selectOption("selected");
   await expect(page.getByRole("dialog")).toContainText("8,000");
   const download = page.waitForEvent("download");
   await page.getByRole("link", { name: "下载 CSV" }).click();
@@ -308,5 +309,112 @@ test("English narrow layouts keep drawers and settings accessible", async ({
       fullPage: true,
     });
     await page.getByRole("button", { name: "Done", exact: true }).click();
+  }
+});
+
+test("CSV defaults to all points and full recording, with optional ROI and selected channel", async ({
+  page,
+}) => {
+  await page.getByRole("spinbutton", { name: "区间结束帧" }).fill("8");
+  await page.getByRole("textbox", { name: "搜索通道" }).fill("LANK");
+  await page.getByRole("button", { name: "导出 CSV", exact: true }).click();
+  await expect(page.getByLabel("导出内容", { exact: true })).toHaveValue(
+    "all-points",
+  );
+  await expect(page.getByLabel("导出区间", { exact: true })).toHaveValue(
+    "full",
+  );
+  await expect(page.getByRole("dialog")).toContainText(
+    "未识别到文件自带的 COM",
+  );
+  const [all] = await Promise.all([
+    page.waitForEvent("download"),
+    page.getByRole("link", { name: "下载 CSV", exact: true }).click(),
+  ]);
+  const { readFile } = await import("node:fs/promises");
+  const full = await readFile((await all.path())!, "utf8");
+  const rows = full.trim().split(/\r?\n/);
+  expect(all.suggestedFilename()).toBe("c3d-all-points.csv");
+  expect(rows).toHaveLength(801);
+  expect(rows[0].split(",")).toHaveLength(2 + 35 * 4);
+  expect(rows[0]).toContain("LFHD:X (mm)");
+  expect(rows[0]).toContain("RTOE:Z (mm)");
+  await page.getByRole("button", { name: "导出 CSV", exact: true }).click();
+  await page.getByLabel("导出区间", { exact: true }).selectOption("roi");
+  const [roi] = await Promise.all([
+    page.waitForEvent("download"),
+    page.getByRole("link", { name: "下载 CSV", exact: true }).click(),
+  ]);
+  expect(
+    (await readFile((await roi.path())!, "utf8")).trim().split(/\r?\n/),
+  ).toHaveLength(9);
+});
+
+test("source COM and floor projection are visible and exportable, including English and narrow layout", async ({
+  page,
+}) => {
+  const { execFileSync } = await import("node:child_process");
+  const { mkdtemp, readFile, rm } = await import("node:fs/promises");
+  const { tmpdir } = await import("node:os");
+  const path = await import("node:path");
+  const folder = await mkdtemp(path.join(tmpdir(), "c3d-com-browser-"));
+  try {
+    execFileSync(process.env.CI ? "python3" : ".venv/bin/python", [
+      "-c",
+      "from backend.demo import create_demo; import sys; from pathlib import Path; create_demo(Path(sys.argv[1])/'synthetic-com.c3d', include_com=True)",
+      folder,
+    ]);
+    await page.getByRole("button", { name: "打开文件夹", exact: true }).click();
+    await page.getByLabel("文件夹路径").fill(folder);
+    await page
+      .getByRole("dialog")
+      .getByRole("button", { name: "打开文件夹", exact: true })
+      .click();
+    await expect(
+      page.getByRole("heading", { name: "synthetic-com.c3d" }),
+    ).toBeVisible();
+    await page.getByRole("button", { name: "导出 CSV", exact: true }).click();
+    await expect(page.locator(".com-summary")).toContainText(
+      "三维质心: Demo:CentreOfMass",
+    );
+    await expect(page.locator(".com-summary")).toContainText(
+      "质心地面投影: Demo:CentreOfMassFloor",
+    );
+    await page.getByLabel("导出内容", { exact: true }).selectOption("com");
+    const [download] = await Promise.all([
+      page.waitForEvent("download"),
+      page.getByRole("link", { name: "下载 CSV", exact: true }).click(),
+    ]);
+    const rows = (await readFile((await download.path())!, "utf8"))
+      .trim()
+      .split(/\r?\n/);
+    expect(download.suggestedFilename()).toBe("c3d-com.csv");
+    expect(rows).toHaveLength(801);
+    expect(rows[0].split(",")).toHaveLength(10);
+    expect(rows[0]).toContain("Demo:CentreOfMass:Z (mm)");
+    expect(rows[0]).toContain("Demo:CentreOfMassFloor:Z (mm)");
+    await page.getByRole("button", { name: "设置", exact: true }).click();
+    await page.getByLabel("界面语言").selectOption("en");
+    await page.getByRole("button", { name: "Done", exact: true }).click();
+    await page.getByRole("button", { name: "Export CSV", exact: true }).click();
+    await expect(
+      page.getByLabel("Export contents", { exact: true }),
+    ).toHaveValue("all-points");
+    await expect(page.locator(".com-summary")).toContainText(
+      "3D center of mass",
+    );
+    await page.screenshot({ path: ".local/screenshots/export-com-en.png" });
+    await page.setViewportSize({ width: 390, height: 844 });
+    await expect(page.getByRole("dialog")).toBeVisible();
+    expect(
+      await page.evaluate(
+        () => document.documentElement.scrollWidth <= innerWidth,
+      ),
+    ).toBe(true);
+    await page.screenshot({
+      path: ".local/screenshots/export-com-en-mobile.png",
+    });
+  } finally {
+    await rm(folder, { recursive: true, force: true });
   }
 });

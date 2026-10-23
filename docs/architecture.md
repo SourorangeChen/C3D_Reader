@@ -30,6 +30,8 @@ Analog series retain sample-level times. A min/max envelope also keeps a missing
 
 `POST /api/library/exports` snapshots the registered current-folder files. `GET /api/library/exports/{id}` returns progress; `DELETE` requests cancellation; `GET .../{id}/download` returns a completed ZIP. The single worker bypasses the selected-channel limit and exports all channels and all frames. It stages only one recording at a time, writes CSV and ZIP contents in bounded chunks, and keeps a manifest of successes and failures without absolute source paths. Downloads hold a lease so a new export or expiry cannot delete an in-flight file. Results expire after 30 idle minutes. Filename numbering prevents collisions across case and Unicode normalization differences.
 
+The per-file export API accepts `scope=selected` (the backwards-compatible default), `scope=all` for every point or analog channel, and `scope=com` for recognized source COM and floor projections. The UI explicitly requests all points / all frames by default. COM roles are additive metadata derived from exact normalized label suffixes (`CentreOfMass`, `CenterOfMass`, `COM`, and `Floor` variants), preserving subject prefixes and raw sample values. A missing COM channel is reported; marker averaging is not implemented as a substitute. `create_demo(..., include_com=True)` creates an optional mathematical regression fixture without changing the default 35-marker demo.
+
 ## Format adaptations
 
 1. **Numbered parameter arrays.** Vicon can split arrays at 255 entries, including `LABELS2`, `SCALE2`, `OFFSET2` and `UNITS2`. Each family is concatenated before channel indexing. py-c3d 0.6 does not concatenate these analog arrays in its default frame transformation.

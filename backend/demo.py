@@ -7,7 +7,7 @@ import c3d
 import numpy as np
 
 
-def create_demo(path):
+def create_demo(path, include_com=False):
     path = Path(path)
     path.parent.mkdir(parents=True, exist_ok=True)
     labels = [
@@ -87,6 +87,11 @@ def create_demo(path):
         ],
         dtype=float,
     )
+    if include_com:
+        # Optional regression fixture only: these are mathematical trajectories,
+        # not a biomechanical estimate or a clinical COM model.
+        labels.extend(["Demo:CentreOfMass", "Demo:CentreOfMassFloor"])
+        base = np.vstack([base, [20, 30, 1000], [20, 30, 0]])
     writer = c3d.Writer(point_rate=100, analog_rate=1000, point_scale=-0.01)
     writer.set_point_labels(labels)
     writer.set_analog_labels(
@@ -108,6 +113,9 @@ def create_demo(path):
             elif any(s in name for s in ("ELB", "WRA", "WRB", "FIN")):
                 points[i, 1] -= np.sin(phase) * side * 150
             points[i, 2] += 14 * np.cos(phase * 2)
+        if include_com:
+            points[-2, :3] = [20, 30 + 40 * np.sin(phase), 1000 + 10 * np.cos(phase * 2)]
+            points[-1, :3] = [*points[-2, :2], 0]
         times = time + np.arange(10) / 1000
         wave = np.sin(times * 2 * np.pi * 0.9)
         analog = np.array(

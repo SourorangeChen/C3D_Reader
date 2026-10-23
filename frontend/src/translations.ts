@@ -1,5 +1,28 @@
 // UI copy only. Acquisition labels, events and parameter values remain verbatim.
 export const english: Record<string, string> = {
+  "模拟 CSV 每个采样点一行，保留全部采样、原始帧号、标签和单位。":
+    "Analog CSVs contain one row per sample, preserving all samples, original frame numbers, labels and units.",
+  "选择导出内容；全部点位包含文件中的所有关键点、模型输出和已有质心数据，不受通道搜索或可见性影响。":
+    "Choose what to export. All points includes every marker, model output and source-provided COM channel, regardless of search or visibility.",
+  导出内容: "Export contents",
+  "全部点位（含模型输出及已有 COM）":
+    "All points (including model outputs and source COM)",
+  "仅 COM 及地面投影": "COM and floor projections only",
+  当前选中通道: "Selected channel",
+  全部模拟通道: "All analog channels",
+  导出区间: "Export range",
+  完整采集: "Full recording",
+  当前观察区间: "Current frame range",
+  文件中的质心数据: "Center of mass in this file",
+  三维质心: "3D center of mass",
+  质心地面投影: "COM floor projection",
+  "文件只包含地面投影，未找到三维 COM 通道。":
+    "Only a floor projection was found; no 3D COM channel is present.",
+  "未识别到文件自带的 COM 通道；仍可导出全部点位。不会用标记点平均位置生成质心。":
+    "No source COM channel was recognized. All points can still be exported; a marker average will not be substituted for COM.",
+  通道数: "Channels",
+  "每帧一行，全部点位按列展开，保留原标签、物理单位、原始帧号和完整采样率。COM 与地面投影分别保留，不会重新计算。":
+    "Point CSVs contain one row per frame and columns for all selected points. Original labels, units, frame numbers and full sampling rates are preserved. COM and floor projections are kept separately without recalculation.",
   "无法读取帧数据，请检查硬盘连接。":
     "Cannot read frame data. Check the drive connection.",
   "无法获取这个文件的本地路径。": "Cannot get the local path of this file.",
@@ -176,8 +199,8 @@ export const english: Record<string, string> = {
   "Space 播放 / 暂停；← → 逐帧；Shift + ← → 跳 10 帧；Home / End 跳到区间两端。":
     "Space: play / pause; ← →: step; Shift + ← →: skip 10 frames; Home / End: range boundaries.",
   观察与导出: "Range and export",
-  "在信息面板设置帧区间，然后导出当前通道。CSV 保留完整采样率。":
-    "Set the frame range in the inspector, then export the selected channel at the original sample rate.",
+  "导出 CSV 默认包含全部点位和完整采集；也可选择 COM、当前通道或观察区间。CSV 保留完整采样率。":
+    "Export CSV defaults to all points and the full recording. Choose COM, a selected channel or the current range if needed; full sampling rates are preserved.",
   数据约定: "Data conventions",
   "默认 Z 轴向上，可切换 Y 轴。连线根据常用 Plug-in Gait 标签推断；力台只展示轮廓，力与力矩可在模拟通道查看。":
     "Z is up by default; Y-up is available. Segments are inferred from common Plug-in Gait labels. Force plates show outlines; forces and moments appear as analog channels.",
@@ -252,6 +275,9 @@ export const english: Record<string, string> = {
     "This folder does not exist or is not mounted.",
 };
 export const chineseErrors: Record<string, string> = {
+  "No matching source channels are available for this export.":
+    "文件中没有可用于此导出的源通道。",
+  "COM export requires point data.": "COM 导出需要点位数据。",
   "This folder does not exist or is not mounted.":
     "文件夹不存在或未挂载，请重新选择。",
   "This folder contains no C3D files.": "此文件夹中没有 C3D 文件。",

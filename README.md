@@ -24,7 +24,7 @@
 - XYZ 曲线、关节角度 / 力 / 力矩 / 功率等模型输出、EMG / IMU 等模拟信号。
 - 同步时间轴、原始帧号、0.1×–2× 播放、循环、事件跳帧、观察区间。
 - C3D 参数检查器，显示参数组、维度与原始值；显示力台几何轮廓。
-- 当前通道及观察区间的 CSV 导出，保留完整采样率和物理单位。
+- CSV 默认一次导出当前文件全部点位（含模型输出及已有 COM），也可单独导出 COM / 地面投影、当前通道或全部模拟通道；可选完整采集或观察区间。
 - 整个目录批量导出 CSV：全部点位 / 模型及模拟通道，保留全采样率，支持进度、取消及失败清单。
 - 设置窗口：深色 / 浅色 / 跟随系统主题，中英文切换，自动保存。
 - 更大的默认 3D 区域；左右面板和 3D / 曲线之间支持拖动调整大小，布局自动记忆。
@@ -36,7 +36,7 @@
 
 ### macOS 桌面应用（推荐）
 
-在 [Releases](https://github.com/SourorangeChen/C3D_Reader/releases) 下载 `C3D-Reader-0.3.0-macOS-arm64.dmg`，双击打开，将 **C3D Reader.app** 拖到旁边的 **Applications（应用程序）** 文件夹，然后从“应用程序”双击启动。安装后可推出磁盘镜像。也提供 ZIP 解压版本。当前构建适用于 **Apple Silicon（M1 / M2 / M3 / M4 等）和 macOS 14+**，Intel Mac 尚未提供安装包。
+在 [Releases](https://github.com/SourorangeChen/C3D_Reader/releases) 下载 `C3D-Reader-0.3.1-macOS-arm64.dmg`，双击打开，将 **C3D Reader.app** 拖到旁边的 **Applications（应用程序）** 文件夹，然后从“应用程序”双击启动。安装后可推出磁盘镜像。也提供 ZIP 解压版本。当前构建适用于 **Apple Silicon（M1 / M2 / M3 / M4 等）和 macOS 14+**，Intel Mac 尚未提供安装包。
 
 桌面版已经包含 Python、读取引擎、Chromium 和前端资源，使用时无需安装 Python / Node.js，也无需联网或先启动网页服务。
 
@@ -87,7 +87,15 @@ python3 run.py --rebuild
 | 前后逐帧           | ← / →；配合 Shift 跳 10 帧                       |
 | 跳到观察区间两端   | Home / End                                       |
 | 定位采样           | 点击曲线、事件标记或填写原始帧号                 |
-| 导出区间           | 信息面板设置起止帧，再点击「导出 CSV」           |
+| 导出当前文件       | 点击「导出 CSV」，默认全部点位、完整采集；可切换 COM、当前通道、模拟通道和观察区间 |
+
+### 当前文件的全部点位与 COM 导出
+
+点击主工作区的「导出 CSV」，默认导出**全部点位、完整采集**，无需逐个选择关键点。每帧一行，所有点位按列展开，包含 X / Y / Z / residual、原始标签、单位、帧号和相对时间；通道搜索、隐藏状态与曲线抽样不影响导出。
+
+「导出内容」还可选择「仅 COM 及地面投影」「当前选中通道」或「全部模拟通道」；「导出区间」可改为当前观察区间。
+
+COM 从源 C3D 原样读取，识别 `CentreOfMass`、`CenterOfMass`、`COM` 及对应 `Floor` 名称，支持主体前缀、大小写、空格和下划线。三维质心与地面投影分别保留；投影含义可参考 [Vicon Plug-in Gait 参考指南](https://help.vicon.com/download/attachments/406490967/Plug-in%20Gait%20Reference%20Guide.pdf)。软件不重新计算质心，也不会把标记点平均位置当成质心。未识别到 COM 时会明确提示；自定义名称的通道仍包含在「全部点位」中。
 
 ### 批量 CSV 文件结构
 

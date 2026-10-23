@@ -118,8 +118,10 @@ class BatchExports:
                             pointRate=acq.rate,
                             analogRate=acq.analog_rate,
                             points=[
-                                dict(label=label, unit=unit, kind=kind)
-                                for label, unit, kind in zip(acq.point_labels, acq.units, acq.kinds)
+                                dict(label=label, unit=unit, kind=kind, role=acq.point_roles[i])
+                                for i, (label, unit, kind) in enumerate(
+                                    zip(acq.point_labels, acq.units, acq.kinds)
+                                )
                             ],
                             analogs=[
                                 dict(label=label, unit=unit)
