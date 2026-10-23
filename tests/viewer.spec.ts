@@ -125,10 +125,18 @@ test("settings switch themes and language immediately, persist, and follow the s
   page,
 }) => {
   const issues: string[] = [];
+  const sceneBrightness = () =>
+    page.locator(".viewer-shell canvas").evaluate((canvas) => {
+      const gl = (canvas as HTMLCanvasElement).getContext("webgl2")!;
+      const color = gl.getParameter(gl.COLOR_CLEAR_VALUE) as Float32Array;
+      return (color[0] + color[1] + color[2]) / 3;
+    });
   page.on("pageerror", (error) => issues.push(error.message));
   await page.getByRole("button", { name: "设置", exact: true }).click();
   await page.getByLabel("主题", { exact: true }).selectOption("light");
   await expect(page.locator("html")).toHaveAttribute("data-theme", "light");
+  // WebGL must adopt the same theme without waiting for another UI change.
+  await expect.poll(sceneBrightness).toBeGreaterThan(0.9);
   await page.getByLabel("界面语言").selectOption("en");
   await expect(
     page.getByRole("dialog", { name: "Settings", exact: true }),
@@ -155,8 +163,10 @@ test("settings switch themes and language immediately, persist, and follow the s
   await page.getByLabel("Theme", { exact: true }).selectOption("system");
   await page.emulateMedia({ colorScheme: "dark" });
   await expect(page.locator("html")).toHaveAttribute("data-theme", "dark");
+  await expect.poll(sceneBrightness).toBeLessThan(0.2);
   await page.emulateMedia({ colorScheme: "light" });
   await expect(page.locator("html")).toHaveAttribute("data-theme", "light");
+  await expect.poll(sceneBrightness).toBeGreaterThan(0.9);
   // Focus remains inside the settings window and Escape restores the trigger.
   await page.getByRole("button", { name: "Done", exact: true }).focus();
   await page.keyboard.press("Tab");

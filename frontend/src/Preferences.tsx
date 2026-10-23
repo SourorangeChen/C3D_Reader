@@ -3,6 +3,7 @@ import {
   useCallback,
   useContext,
   useEffect,
+  useLayoutEffect,
   useState,
 } from "react";
 import { desktop } from "./desktop";
@@ -100,7 +101,7 @@ export function PreferencesProvider({
         ? "dark"
         : "light"
       : preferences.theme;
-  useEffect(() => {
+  useLayoutEffect(() => {
     document.documentElement.dataset.theme = resolvedTheme;
     document.documentElement.lang = preferences.language;
   }, [resolvedTheme, preferences.language]);

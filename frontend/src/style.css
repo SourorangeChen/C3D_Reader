@@ -7,34 +7,43 @@
   font-synthesis: none;
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
-  --ground: #171719;
-  --surface: #131217;
-  --raised: #212023;
-  --border: #2c2b31;
-  --rule: #242328;
-  --control: #3a3a3e;
-  --text: #fff;
-  --muted: #a5a5ad;
-  --faint: #96969e;
-  --accent: #4a8ad6;
+  --ground: #1b1b1e;
+  --surface: #111113;
+  --raised: #29292e;
+  --border: #333339;
+  --rule: #29292e;
+  --control: #74747e;
+  --text: #f5f5f7;
+  --muted: #b3b3bd;
+  --faint: #a1a1ad;
+  --accent: #72aef8;
   --negative: #e88a9b;
-  --text-soft: #dedde5;
+  --text-soft: #dedee3;
   --inverse-surface: #e4e5e8;
   --inverse-text: #171719;
-  --hover: #252428;
-  --dialog: #1c1b20;
+  --hover: #2e2e34;
+  --dialog: #222226;
   --error-bg: #2c1a20;
   --drop-bg: #171719ed;
-  --label-bg: #131217b3;
-  --label-selected: #222127e6;
-  --floating-bg: #212023f5;
-  --chart-grid: #29282e;
-  --signal-x: #4a8ad6;
-  --signal-y: #c2c5cc;
-  --signal-z: #d9a441;
+  --label-bg: #18181be8;
+  --label-selected: #303037f2;
+  --floating-bg: #29292e;
+  --chart-grid: #2c2c32;
+  --signal-x: #72aef8;
+  --signal-y: #d6d8df;
+  --signal-z: #e6b967;
   color-scheme: dark;
-  --radius: 5px;
+  --radius: 6px;
   font-variant-numeric: tabular-nums;
+  --chrome: #202024;
+  --selected: #303037;
+  --focus: #8cbcff;
+  --scroll-thumb: #65656e;
+  --scene-grid: #28282e;
+  --scene-grid-center: #3e3e46;
+  --scene-line: #b0b0bd;
+  --selection-bg: #375a83;
+  --selection-ink: #ffffff;
 }
 .file-drop-overlay {
   position: fixed;
@@ -102,7 +111,7 @@ a:focus-visible,
 input:focus-visible,
 select:focus-visible,
 summary:focus-visible {
-  outline: 2px solid #8ab7eb;
+  outline: 2px solid var(--focus);
   outline-offset: 3px;
 }
 input,
@@ -123,7 +132,7 @@ input::-webkit-inner-spin-button {
   appearance: none;
 }
 input[type="checkbox"] {
-  accent-color: #a4a9b2;
+  accent-color: var(--accent);
 }
 select {
   height: 29px;
@@ -150,7 +159,7 @@ button:hover:not(:disabled) {
   height: 5px;
 }
 ::-webkit-scrollbar-thumb {
-  background: #44434a;
+  background: var(--scroll-thumb);
   border-radius: 3px;
 }
 ::-webkit-scrollbar-track {
@@ -170,26 +179,28 @@ button:hover:not(:disabled) {
   padding: 0 20px 0 17px;
   gap: 32px;
   border-bottom: 1px solid var(--border);
+  background: var(--chrome);
 }
 .brand {
   display: flex;
   align-items: center;
   gap: 10px;
-  font-size: 17px;
+  font-size: 18px;
   white-space: nowrap;
   letter-spacing: -0.3px;
 }
 .brand strong {
-  font-weight: 500;
+  font-weight: 600;
 }
 .version {
   font-family: "IBM Plex Mono", monospace;
   font-size: 11px;
-  border: 1px solid var(--control);
-  padding: 1px 5px;
-  border-radius: 3px;
+  border: 0;
+  padding: 3px 6px;
+  border-radius: 4px;
   margin-left: 3px;
   color: var(--muted);
+  background: var(--raised);
 }
 .workspace-name {
   font-size: 12px;
@@ -233,7 +244,9 @@ button:hover:not(:disabled) {
   padding: 0 11px;
   font-size: 12px;
   white-space: nowrap;
-  background: var(--ground);
+  background: var(--chrome);
+  border-color: var(--border);
+  font-weight: 500;
 }
 .button:hover {
   background: var(--hover);
@@ -254,7 +267,7 @@ button:hover:not(:disabled) {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  border-radius: 4px;
+  border-radius: 6px;
   color: var(--muted);
   position: relative;
 }
@@ -347,18 +360,22 @@ button:hover:not(:disabled) {
   color: var(--muted);
 }
 .file-search {
-  height: 27px;
-  margin: 4px 16px 8px;
+  height: 32px;
+  margin: 6px 14px 8px;
   display: flex;
   align-items: center;
   gap: 7px;
   color: var(--muted);
+  padding: 0 8px;
+  border: 1px solid var(--control);
+  border-radius: var(--radius);
+  background: var(--surface);
 }
 .file-search input {
   width: 100%;
   border: 0;
   background: none;
-  font-size: 11px;
+  font-size: 12px;
   min-width: 0;
   outline-offset: 0;
 }
@@ -370,13 +387,13 @@ button:hover:not(:disabled) {
   padding-bottom: 4px;
 }
 .file-row {
-  height: 31px;
+  height: 34px;
   width: 100%;
   padding: 0 14px 0 18px;
   display: flex;
   align-items: center;
   gap: 7px;
-  font-size: 11px;
+  font-size: 12px;
   text-align: left;
   position: relative;
   color: var(--muted);
@@ -397,7 +414,7 @@ button:hover:not(:disabled) {
 .file-row.selected,
 .demo-row.selected {
   color: var(--text);
-  background: var(--hover);
+  background: var(--selected);
 }
 .file-row.selected:before,
 .demo-row.selected:before {
@@ -421,7 +438,7 @@ button:hover:not(:disabled) {
   padding: 0 16px;
   position: relative;
   text-align: left;
-  font-size: 11px;
+  font-size: 12px;
   color: var(--muted);
 }
 .tiny-note {
@@ -464,7 +481,7 @@ button:hover:not(:disabled) {
 }
 .channel-tabs button {
   margin-right: 14px;
-  font-size: 11px;
+  font-size: 12px;
 }
 .channel-tabs button:last-child {
   margin: 0;
@@ -480,18 +497,19 @@ button:hover:not(:disabled) {
   align-items: center;
   gap: 8px;
   border: 1px solid var(--control);
-  border-radius: 4px;
+  border-radius: var(--radius);
   margin: 13px 14px 9px;
   height: 31px;
   padding: 0 8px;
   color: var(--muted);
+  background: var(--surface);
 }
 .channel-search input {
   min-width: 0;
   width: 100%;
   border: 0;
   background: none;
-  font-size: 11px;
+  font-size: 12px;
   height: 27px;
   outline-offset: 0;
 }
@@ -523,16 +541,16 @@ button:hover:not(:disabled) {
   align-items: center;
   gap: 7px;
   width: 100%;
-  height: 29px;
+  height: 32px;
   padding: 0 16px;
-  font-size: 11px;
+  font-size: 12px;
   color: var(--text-soft);
   text-align: left;
   position: relative;
 }
 .channel-row.selected {
   color: var(--text);
-  background: var(--hover);
+  background: var(--selected);
 }
 .channel-row.selected:after {
   content: "";
@@ -566,12 +584,15 @@ button:hover:not(:disabled) {
 }
 .visibility-button {
   display: flex;
-  width: 16px;
+  width: 24px;
   flex: none;
   align-items: center;
   justify-content: center;
   padding: 0;
   color: var(--faint);
+  height: 24px;
+  margin-left: -4px;
+  margin-right: -4px;
 }
 .channel-row > svg {
   color: var(--faint);
@@ -624,10 +645,10 @@ button:hover:not(:disabled) {
   margin-bottom: 7px;
 }
 .trial-title h1 {
-  font-size: 21px;
-  line-height: 28px;
-  font-weight: 500;
-  letter-spacing: -0.5px;
+  font-size: 24px;
+  line-height: 30px;
+  font-weight: 600;
+  letter-spacing: -0.45px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -641,7 +662,7 @@ button:hover:not(:disabled) {
   align-items: center;
   gap: 17px;
   color: var(--muted);
-  font-size: 11px;
+  font-size: 12px;
   min-height: 45px;
   flex-wrap: wrap;
   padding: 8px 0 12px;
@@ -654,7 +675,7 @@ button:hover:not(:disabled) {
 }
 .trial-stats strong {
   font-family: "IBM Plex Mono", monospace;
-  font-size: 12px;
+  font-size: 13px;
   font-weight: 400;
   color: var(--text-soft);
 }
@@ -669,7 +690,7 @@ button:hover:not(:disabled) {
   display: flex;
   flex-direction: column;
   background: var(--surface);
-  border-radius: 5px 5px 0 0;
+  border-radius: 8px;
   overflow: hidden;
 }
 .scene-toolbar {
@@ -681,6 +702,7 @@ button:hover:not(:disabled) {
   border-bottom: 1px solid var(--rule);
   padding: 0 12px;
   flex: none;
+  background: var(--chrome);
 }
 .toolbar-group {
   display: flex;
@@ -692,7 +714,7 @@ button:hover:not(:disabled) {
   border: 0;
   background: none;
   padding: 0 2px;
-  font-size: 11px;
+  font-size: 12px;
   height: 28px;
 }
 .toolbar-toggles {
@@ -703,7 +725,7 @@ button:hover:not(:disabled) {
 .toolbar-toggles > button:not(.icon-button) {
   height: 37px;
   padding: 0;
-  font-size: 11px;
+  font-size: 12px;
   color: var(--muted);
   position: relative;
 }
@@ -843,7 +865,7 @@ button:hover:not(:disabled) {
   border-radius: 50%;
 }
 .dot.left {
-  background: #4a8ad6;
+  background: var(--signal-x);
 }
 .scene-legend .scene-footnote {
   margin-left: auto;
@@ -860,7 +882,7 @@ button:hover:not(:disabled) {
   margin-top: 16px;
   padding: 0 15px 0 6px;
   flex: none;
-  border-radius: 5px;
+  border-radius: 8px;
 }
 .signal-heading {
   display: flex;
@@ -879,8 +901,8 @@ button:hover:not(:disabled) {
   color: var(--muted);
 }
 .signal-heading h2 {
-  font-size: 12px;
-  font-weight: 500;
+  font-size: 13px;
+  font-weight: 600;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -901,8 +923,8 @@ button:hover:not(:disabled) {
   gap: 5px;
   padding: 2px 0;
   color: var(--muted);
-  font-size: 11px;
-  opacity: 0.4;
+  font-size: 12px;
+  opacity: 1;
 }
 .axis-controls button.active {
   opacity: 1;
@@ -972,12 +994,12 @@ button:hover:not(:disabled) {
   height: 28px;
 }
 .play-button {
-  height: 29px;
-  width: 31px;
+  height: 32px;
+  width: 34px;
   display: flex;
   align-items: center;
   justify-content: center;
-  border-radius: 4px;
+  border-radius: 6px;
   background: var(--inverse-surface);
   color: var(--inverse-text);
   margin: 0 4px;
@@ -1141,12 +1163,13 @@ button:hover:not(:disabled) {
   min-height: 0;
 }
 .section-label {
-  font-size: 11px;
-  color: var(--muted);
+  font-size: 12px;
+  color: var(--text-soft);
   display: flex;
   align-items: center;
   gap: 6px;
   margin-bottom: 15px;
+  font-weight: 600;
 }
 .section-label > span {
   margin-left: auto;
@@ -1160,8 +1183,8 @@ button:hover:not(:disabled) {
   overflow: hidden;
 }
 .selected-channel h2 {
-  font-size: 17px;
-  font-weight: 500;
+  font-size: 19px;
+  font-weight: 600;
   line-height: 23px;
   overflow-wrap: anywhere;
 }
@@ -1177,8 +1200,8 @@ button:hover:not(:disabled) {
   justify-content: space-between;
   align-items: baseline;
   gap: 10px;
-  min-height: 27px;
-  font-size: 11px;
+  min-height: 29px;
+  font-size: 12px;
 }
 .key-values dt {
   color: var(--muted);
@@ -1187,14 +1210,14 @@ button:hover:not(:disabled) {
   margin: 0;
   text-align: right;
   font-family: "IBM Plex Mono", monospace;
-  font-size: 11px;
+  font-size: 12px;
   color: var(--text-soft);
 }
 .coordinate-values {
   margin-top: 17px;
-  padding: 10px 11px 0;
+  padding: 12px 12px 0;
   background: var(--surface);
-  border-radius: 4px;
+  border-radius: 8px;
 }
 .coordinate-values > div {
   display: flex;
@@ -1208,7 +1231,7 @@ button:hover:not(:disabled) {
 }
 .coordinate-values strong {
   font-family: "IBM Plex Mono", monospace;
-  font-size: 16px;
+  font-size: 18px;
   font-weight: 400;
   margin-left: auto;
 }
@@ -1234,7 +1257,7 @@ button:hover:not(:disabled) {
   gap: 10px;
 }
 .roi-inputs label {
-  font-size: 11px;
+  font-size: 12px;
   color: var(--muted);
   display: flex;
   flex-direction: column;
@@ -1244,9 +1267,11 @@ button:hover:not(:disabled) {
   width: 100%;
   min-width: 0;
   text-align: right;
-  height: 29px;
+  height: 32px;
   padding: 0 7px;
   color: var(--text-soft);
+  font-size: 12px;
+  background: var(--surface);
 }
 .roi-actions {
   display: flex;
@@ -1256,7 +1281,7 @@ button:hover:not(:disabled) {
 }
 .roi-actions button {
   padding: 0;
-  font-size: 11px;
+  font-size: 12px;
   color: var(--text-soft);
 }
 .text-button {
@@ -1265,7 +1290,7 @@ button:hover:not(:disabled) {
   color: var(--muted);
 }
 .reset-roi {
-  font-size: 11px;
+  font-size: 12px;
   text-decoration: underline;
   text-underline-offset: 4px;
 }
@@ -1315,8 +1340,8 @@ button:hover:not(:disabled) {
   gap: 5px;
 }
 .event-row strong {
-  font-weight: 400;
-  font-size: 11px;
+  font-weight: 500;
+  font-size: 12px;
 }
 .event-row > div > span {
   font-size: 11px;
@@ -1492,10 +1517,10 @@ button:hover:not(:disabled) {
   max-height: 90dvh;
   overflow: auto;
   background: var(--dialog);
-  border: 1px solid var(--control);
-  border-radius: 8px;
-  box-shadow: 0 20px 70px #0005;
-  padding: 24px;
+  border: 0;
+  border-radius: 12px;
+  box-shadow: 0 24px 80px #0006;
+  padding: 28px;
 }
 .modal-title {
   display: flex;
@@ -1505,12 +1530,12 @@ button:hover:not(:disabled) {
   margin-bottom: 17px;
 }
 .modal-title h2 {
-  font-size: 17px;
-  font-weight: 500;
+  font-size: 19px;
+  font-weight: 600;
 }
 .modal p {
-  font-size: 12px;
-  line-height: 1.85;
+  font-size: 13px;
+  line-height: 1.75;
   color: var(--muted);
 }
 .field-label {
@@ -1526,7 +1551,7 @@ button:hover:not(:disabled) {
   font-family: "IBM Plex Mono", monospace;
 }
 .modal .form-note {
-  font-size: 11px;
+  font-size: 12px;
   color: var(--muted);
   line-height: 1.8;
   margin-top: 13px;
@@ -2078,31 +2103,40 @@ button:hover:not(:disabled) {
 /* Preferences share one palette across controls, labels and plots. */
 :root[data-theme="light"] {
   color-scheme: light;
-  --ground: #f3f4f6;
-  --surface: #fff;
-  --raised: #e9ecf1;
-  --border: #cdd2db;
-  --rule: #e1e5eb;
-  --control: #adb5c2;
-  --text: #202630;
-  --text-soft: #394350;
-  --muted: #596473;
-  --faint: #616c7a;
-  --accent: #2869b7;
+  --ground: #f1f2f4;
+  --surface: #ffffff;
+  --raised: #e7e9ed;
+  --border: #d7dbe1;
+  --rule: #e8eaee;
+  --control: #858e9c;
+  --text: #20232a;
+  --text-soft: #373c46;
+  --muted: #555e6d;
+  --faint: #626b79;
+  --accent: #2268b5;
   --negative: #a92646;
   --inverse-surface: #2c3542;
   --inverse-text: #fff;
-  --hover: #e6ebf2;
+  --hover: #e2e6ec;
   --dialog: #fff;
   --error-bg: #fbe9ed;
   --drop-bg: #f3f4f6ed;
   --label-bg: #ffffffd9;
   --label-selected: #e6ebf2ed;
   --floating-bg: #fffffff5;
-  --chart-grid: #e2e6ec;
-  --signal-x: #2869b7;
-  --signal-y: #5f6d82;
+  --chart-grid: #e7eaf0;
+  --signal-x: #246fbe;
+  --signal-y: #596879;
   --signal-z: #93620a;
+  --chrome: #f7f8fa;
+  --selected: #e0e5ec;
+  --focus: #1767b7;
+  --scroll-thumb: #8c95a2;
+  --scene-grid: #e3e7ed;
+  --scene-grid-center: #c8d0dc;
+  --scene-line: #606d80;
+  --selection-bg: #c6dcf6;
+  --selection-ink: #183654;
 }
 .settings-row {
   display: flex;
@@ -2122,8 +2156,8 @@ button:hover:not(:disabled) {
   padding: 23px 0 18px;
 }
 .settings-layout h3 {
-  font-size: 13px;
-  font-weight: 500;
+  font-size: 14px;
+  font-weight: 600;
 }
 .settings-layout p {
   margin: 10px 0 16px;
@@ -2136,7 +2170,9 @@ button:hover:not(:disabled) {
   padding: 8px 10px;
   border: 1px solid var(--control);
   border-radius: var(--radius);
-  font-size: 11px;
+  font-size: 12px;
+  background: var(--chrome);
+  border-color: var(--border);
 }
 .batch-export-button:hover:not(:disabled) {
   background: var(--hover);
@@ -2355,8 +2391,9 @@ button:hover:not(:disabled) {
   margin: 19px 0;
 }
 .export-options label {
-  font-size: 12px;
+  font-size: 13px;
   margin-top: 5px;
+  font-weight: 500;
 }
 .export-options select {
   width: 100%;
@@ -2376,4 +2413,112 @@ button:hover:not(:disabled) {
 .com-summary p {
   margin-top: 8px;
   overflow-wrap: anywhere;
+}
+
+/* Shared interaction states: color is reserved for data, selection and focus. */
+::selection {
+  background: var(--selection-bg);
+  color: var(--selection-ink);
+}
+input {
+  caret-color: var(--focus);
+}
+button,
+a.button,
+select {
+  transition:
+    background-color 120ms ease-out,
+    border-color 120ms ease-out,
+    color 120ms ease-out;
+}
+.button:hover:not(:disabled),
+.batch-export-button:hover:not(:disabled) {
+  border-color: var(--control);
+}
+.button:active:not(:disabled):not(.primary),
+.icon-button:active:not(:disabled) {
+  background: var(--selected);
+}
+.panel-heading h2 {
+  font-weight: 600;
+}
+.rail .icon-button.active {
+  background: var(--raised);
+}
+.file-row:hover,
+.channel-row:hover,
+.demo-row:hover {
+  background: var(--hover);
+}
+.file-row.selected:hover,
+.channel-row.selected:hover,
+.demo-row.selected:hover {
+  background: var(--selected);
+}
+.axis-controls button:not(.active) i {
+  background: var(--faint);
+  opacity: 0.6;
+}
+.axis-controls button:not(.active) {
+  text-decoration: line-through;
+}
+.coordinate-values > div:nth-child(1) > span {
+  color: var(--signal-x);
+}
+.coordinate-values > div:nth-child(2) > span {
+  color: var(--signal-y);
+}
+.coordinate-values > div:nth-child(3) > span {
+  color: var(--signal-z);
+}
+.modal-actions .button {
+  min-height: 36px;
+  padding-inline: 14px;
+  font-size: 13px;
+}
+.settings-row select,
+.export-options select,
+.folder-input {
+  background: var(--surface);
+}
+.batch-progress progress {
+  appearance: none;
+  border: 0;
+  border-radius: 3px;
+  overflow: hidden;
+  background: var(--raised);
+}
+.batch-progress progress::-webkit-progress-bar {
+  background: var(--raised);
+}
+.batch-progress progress::-webkit-progress-value {
+  background: var(--accent);
+  border-radius: 3px;
+}
+.batch-progress progress::-moz-progress-bar {
+  background: var(--accent);
+  border-radius: 3px;
+}
+@media (prefers-reduced-motion: reduce) {
+  button,
+  a.button,
+  select {
+    transition: none;
+  }
+}
+@media (max-width: 767px) {
+  .modal {
+    padding: 22px;
+  }
+  .modal input,
+  .modal select {
+    font-size: 16px;
+  }
+  .modal-actions .button {
+    min-height: 40px;
+  }
+  .file-row,
+  .channel-row {
+    min-height: 34px;
+  }
 }

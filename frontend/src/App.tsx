@@ -1,3 +1,4 @@
+import { version } from "../../package.json";
 import { usePreferences } from "./Preferences";
 import { defaultLayout } from "./Preferences";
 import { PanelDivider } from "./PanelDivider";
@@ -537,7 +538,7 @@ export default function App() {
           <span>
             C3D <strong>Reader</strong>
           </span>
-          <span className="version">0.3.1</span>
+          <span className="version">{version}</span>
         </div>
         <div className="workspace-name">
           Motion workspace <span className="header-slash">/</span>{" "}

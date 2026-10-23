@@ -27,6 +27,7 @@ type SceneState = {
   mesh: THREE.InstancedMesh;
   lines: THREE.LineSegments;
   trail: THREE.Line;
+  colors: { left: string; right: string; selected: string };
   transform: (x: number, y: number, z: number) => THREE.Vector3;
   fit: (view: string) => void;
   render: () => void;
@@ -53,7 +54,9 @@ export function Viewer(props: Props) {
     }
     setFailure("");
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-    renderer.setClearColor("#131217");
+    const palette = getComputedStyle(document.documentElement);
+    const token = (name: string) => palette.getPropertyValue(name).trim();
+    renderer.setClearColor(token("--surface"));
     renderer.outputColorSpace = THREE.SRGBColorSpace;
     el.appendChild(renderer.domElement);
     renderer.domElement.setAttribute(
@@ -118,8 +121,8 @@ export function Viewer(props: Props) {
     const grid = new THREE.GridHelper(
       gridSize,
       gridSize * 2,
-      "#414045",
-      "#252429",
+      token("--scene-grid-center"),
+      token("--scene-grid"),
     );
     scene.add(grid);
     const axes = new THREE.AxesHelper(0.35);
@@ -136,7 +139,7 @@ export function Viewer(props: Props) {
     const lines = new THREE.LineSegments(
       new THREE.BufferGeometry(),
       new THREE.LineBasicMaterial({
-        color: "#9da5b0",
+        color: token("--scene-line"),
         transparent: true,
         opacity: 0.6,
       }),
@@ -146,7 +149,7 @@ export function Viewer(props: Props) {
     const trail = new THREE.Line(
       new THREE.BufferGeometry(),
       new THREE.LineBasicMaterial({
-        color: "#4a8ad6",
+        color: token("--signal-x"),
         transparent: true,
         opacity: 0.75,
       }),
@@ -247,6 +250,11 @@ export function Viewer(props: Props) {
       mesh,
       lines,
       trail,
+      colors: {
+        left: token("--signal-x"),
+        right: token("--signal-y"),
+        selected: token("--text"),
+      },
       transform,
       fit,
       render,
@@ -274,18 +282,33 @@ export function Viewer(props: Props) {
   useEffect(() => {
     const s = state.current;
     if (!s) return;
-    s.renderer.setClearColor(resolvedTheme === "light" ? "#ffffff" : "#131217");
-    const gridColor = new THREE.Color(
-      resolvedTheme === "light" ? "#d1d8e2" : "#33323a",
-    );
+    const palette = getComputedStyle(document.documentElement);
+    const token = (name: string) => palette.getPropertyValue(name).trim();
+    s.renderer.setClearColor(token("--surface"));
+    const gridColor = new THREE.Color(token("--scene-grid"));
     const gridColors = s.grid.geometry.getAttribute("color");
-    for (let i = 0; i < gridColors.count; i++)
-      gridColors.setXYZ(i, gridColor.r, gridColor.g, gridColor.b);
+    const centerColor = new THREE.Color(token("--scene-grid-center"));
+    const positions = s.grid.geometry.getAttribute("position");
+    for (let i = 0; i < gridColors.count; i++) {
+      const c =
+        positions.getX(i) === 0 || positions.getZ(i) === 0
+          ? centerColor
+          : gridColor;
+      gridColors.setXYZ(i, c.r, c.g, c.b);
+    }
     gridColors.needsUpdate = true;
     s.grid.material.color.set("#ffffff");
     (s.lines.material as THREE.LineBasicMaterial).color.set(
-      resolvedTheme === "light" ? "#667487" : "#9da5b0",
+      token("--scene-line"),
     );
+    (s.trail.material as THREE.LineBasicMaterial).color.set(
+      token("--signal-x"),
+    );
+    s.colors = {
+      left: token("--signal-x"),
+      right: token("--signal-y"),
+      selected: token("--text"),
+    };
     s.renderer.domElement.setAttribute(
       "aria-label",
       t("C3D 三维标记点；拖动旋转，滚轮缩放，右键平移，点击选择标记点"),
@@ -320,14 +343,10 @@ export function Viewer(props: Props) {
         i,
         color.set(
           i === props.selected
-            ? resolvedTheme === "light"
-              ? "#202630"
-              : "#ffffff"
+            ? s.colors.selected
             : p.label.split(":").at(-1)?.startsWith("L")
-              ? "#4a8ad6"
-              : resolvedTheme === "light"
-                ? "#65748a"
-                : "#c3c6cb",
+              ? s.colors.left
+              : s.colors.right,
         ),
       );
     });

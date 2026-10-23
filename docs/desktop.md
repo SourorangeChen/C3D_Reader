@@ -1,4 +1,4 @@
-# macOS desktop application — v0.3.2
+# macOS desktop application — v0.3.3
 
 The desktop build embeds the existing workbench in an Electron window and packages the Python service with PyInstaller. End users do not need Python, Node.js, a terminal or an external browser. The current deliverable targets Apple Silicon, macOS 14 and newer. It has an ad-hoc signature; it is not notarized or signed with an Apple Developer ID distribution certificate.
 
@@ -27,7 +27,7 @@ The main CSV dialog now defaults to all point channels and the full acquisition.
 ## Verification on the development Mac
 
 - 48 Python/API/packaging regression tests, including authorization, direct file registration, invalid-drop preservation and package privacy checks.
-- 16 browser regression tests.
+- 16 browser regression tests, including immediate WebGL theme updates and system-theme changes.
 - 8 Electron integration tests, run against both the development launcher and the **packaged app**: native-backed drag/drop, running-app Finder events, native dialog selection, cold launch with a file, invalid-extension handling child-service shutdown, native Settings and preference persistence across app restarts / changing ports, native batch ZIP downloads, and full-point CSV downloads including source COM.
 - The packaged Python executable was tested with the synthetic walking acquisition: 800 point frames, 35 markers and 4 analog channels, generated from `backend/demo.py`. Its bundled frontend, final frame and full-rate CSV export were checked without participant files.
 - `codesign --verify --deep --strict` passed. This verifies local signature consistency, not Developer ID trust or notarization.
