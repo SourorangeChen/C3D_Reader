@@ -31,7 +31,6 @@ test.beforeEach(async () => {
       ...process.env,
       C3D_READER_CONFIG_DIR: path.join(folder, "settings"),
       C3D_READER_DATA: "",
-      ...(process.env.CI ? { ELECTRON_DISABLE_SANDBOX: "1" } : {}),
     },
   });
   page = await application.firstWindow();
