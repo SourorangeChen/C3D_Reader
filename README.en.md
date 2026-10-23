@@ -2,9 +2,19 @@
 
 [简体中文](README.md) | [English](README.en.md)
 
+![C3D Reader overview: a local C3D motion workspace with 3D markers, synchronized signals and events, and full-rate CSV export](docs/media/overview.en.png)
+
 A local C3D motion capture viewer inspired by [Mokka](https://biomechanical-toolkit.github.io/mokka/), built for inspecting Vicon recordings, gait acquisitions and biomechanics data. Open acquisitions, inspect 3D markers and synchronized signals, navigate gait events, and export full-resolution CSV data. A macOS desktop app and a local browser version are available. The application interface is currently in Simplified Chinese.
 
-![C3D Reader with a synthetic walking acquisition](docs/screenshot.png)
+[Download for macOS](https://github.com/SourorangeChen/C3D_Reader/releases/latest) · [Getting started](#getting-started) · [Development](#development-and-testing)
+
+## Demo
+
+Recorded from the real interface using the built-in synthetic walking acquisition: 3D playback → views and marker trails → analog signals → gait event navigation → CSV export.
+
+![C3D Reader demo showing 3D playback, channel selection, event navigation and CSV export](docs/media/demo.gif)
+
+[Watch the clearer MP4 version](https://github.com/SourorangeChen/C3D_Reader/raw/refs/heads/main/docs/media/demo.mp4). The demo uses the browser version; the desktop app shares the same data workbench. No participant recordings are included.
 
 ## Features
 

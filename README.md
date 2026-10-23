@@ -2,9 +2,19 @@
 
 [简体中文](README.md) | [English](README.en.md)
 
+![C3D Reader 简介：本地 C3D 动作数据工作台，支持三维标记点、同步信号与事件和全采样率 CSV 导出](docs/media/overview.zh-CN.png)
+
 一款受 [Mokka](https://biomechanical-toolkit.github.io/mokka/) 启发、本地运行的 C3D 动作数据读取工具，面向 Vicon 运动捕捉、步态分析与生物力学数据检查。界面为简体中文，提供 macOS 桌面应用和本地浏览器两种运行方式，数据直接从本机磁盘读取。
 
-![C3D Reader 合成步行数据界面](docs/screenshot.png)
+[下载 macOS 安装包](https://github.com/SourorangeChen/C3D_Reader/releases/latest) · [安装与运行](#运行) · [开发与测试](#开发与测试)
+
+## 演示
+
+真实界面录制，使用内置合成步行数据：三维播放 → 视角与轨迹 → 模拟信号 → 步态事件定位 → CSV 导出。
+
+![C3D Reader 操作演示：三维播放、切换通道、查看事件和 CSV 导出](docs/media/demo.gif)
+
+[观看清晰版 MP4](https://github.com/SourorangeChen/C3D_Reader/raw/refs/heads/main/docs/media/demo.mp4)。演示录制自浏览器版，桌面版使用相同的数据工作台；素材不含参与者记录。
 
 ## 功能
 
