@@ -16,7 +16,7 @@ from starlette.middleware.trustedhost import TrustedHostMiddleware
 
 from .acquisition import Acquisition, clean_json
 from .batch_export import BatchExports
-from .demo import create_demo
+from .demo import DEMO_REVISION, create_demo
 
 ROOT = Path(__file__).resolve().parents[1]
 CONFIG_DIR = Path(os.environ.get("C3D_READER_CONFIG_DIR", Path.home() / ".config" / "c3d-reader"))
@@ -34,7 +34,7 @@ if not library["root"]:
         library["root"] = json.loads((CONFIG_DIR / "settings.json").read_text())["folder"]
     except (OSError, KeyError, ValueError):
         pass
-demo_path = CONFIG_DIR / "synthetic-walking.c3d"
+demo_path = CONFIG_DIR / f"synthetic-walking-v{DEMO_REVISION}.c3d"
 if not demo_path.exists():
     create_demo(demo_path)
 files = {"demo": demo_path}

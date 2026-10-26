@@ -60,6 +60,45 @@ test("analog selection, original sample-rate CSV and parameters", async ({
   ).toBeVisible();
 });
 
+test("small voltage signals use the full plot scale and retain readable values", async ({
+  page,
+}) => {
+  await page.route(/\/series\?/, (route) =>
+    route.fulfill({
+      json: {
+        start: 0,
+        stop: 0.004,
+        sampleRate: 1000,
+        method: "min-max envelope",
+        series: [
+          {
+            name: "microvoltage-regression",
+            label: "EMG",
+            unit: "V",
+            times: [0, 0.001, 0.002, 0.003, 0.004],
+            values: [-0.00002, 0.00004, 0.00001, -0.00003, 0.00001],
+          },
+        ],
+      },
+    }),
+  );
+  await page.getByRole("tab", { name: "模拟4", exact: true }).click();
+  await page
+    .getByRole("button", { name: "Left tibialis EMG mV", exact: true })
+    .click();
+  await page.locator(".signal-plot").hover();
+  await expect(page.locator(".chart-tooltip")).toContainText(
+    "microvoltage-regression",
+  );
+  await expect(page.locator(".chart-tooltip")).toContainText("e-5 V");
+  const range = await page.locator(".signal-plot svg").evaluate((svg) => {
+    const path = svg.querySelector("path") as SVGGraphicsElement;
+    return { height: path.getBBox().height, available: svg.clientHeight - 42 };
+  });
+  expect(range.height / range.available).toBeGreaterThan(0.5);
+  expect(range.height / range.available).toBeLessThanOrEqual(1);
+});
+
 test("event navigation and marker missing data", async ({ page }) => {
   await page.getByRole("tab", { name: "事件", exact: true }).click();
   await page.locator(".event-row").first().click();

@@ -7,11 +7,12 @@ __pycache__/
 *.pyc
 .DS_Store
 ._*
-*.c3d
-*.xcp
-*.vsk
-*.vst
-*.csv
+*.[cC]3[dD]
+*.[xX][cC][pP]
+*.[vV][sS][kK]
+*.[vV][sS][tT]
+*.[cC][sS][vV]
+*.[tT][sS][vV]
 .env*
 .taste-skill/
 test-results/

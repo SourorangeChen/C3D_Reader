@@ -10,11 +10,13 @@
 
 ## 演示
 
-真实界面录制，使用内置合成步行数据：三维播放 → 视角与轨迹 → 模拟信号 → 步态事件定位 → CSV 导出 → 主题与语言设置 → 调整面板。
+真实界面录制，使用 Vicon 实测步行采集：三维播放 → 视角与轨迹 → 膝关节角度 → 力台与肌电信号 → 步态事件定位 → CSV 导出 → 主题与语言设置 → 调整面板。
+
+演示直接读取 C3D 中的标记点、模型输出和模拟信号：标记点为 250 Hz，模拟信号为 2000 Hz，保留原始帧号、单位与事件。三维连线是标记点标签推断的观察辅助。
 
 ![C3D Reader 操作演示：三维播放、切换通道、查看事件和 CSV 导出](docs/media/demo.gif)
 
-[观看清晰版 MP4](https://github.com/SourorangeChen/C3D_Reader/raw/refs/heads/main/docs/media/demo.mp4)。演示录制自浏览器版，桌面版使用相同的数据工作台；素材不含参与者记录。
+[观看清晰版 MP4](https://github.com/SourorangeChen/C3D_Reader/raw/refs/heads/main/docs/media/demo.mp4)。演示录制自浏览器版，桌面版使用相同的数据工作台。画面隐藏患者姓名、原始文件名与本机路径；原始 C3D / XCP 不随仓库分发。
 
 ## 功能
 
@@ -51,7 +53,7 @@
 
 当前构建使用 **ad-hoc 签名，尚未通过 Apple Developer ID 签名和公证**。本机构建可直接运行；从互联网下载到另一台 Mac 后可能被 Gatekeeper 阻止。仅在信任本项目的情况下，通过 macOS“隐私与安全性”中的“仍要打开”完成系统确认。不要关闭系统安全检查。
 
-![C3D Reader macOS 桌面应用合成数据界面](docs/desktop.jpg)
+![C3D Reader macOS 桌面应用实测步行数据界面](docs/desktop.jpg)
 
 ### 从源码运行浏览器版
 
@@ -122,7 +124,7 @@ COM 从源 C3D 原样读取，识别 `CentreOfMass`、`CenterOfMass`、`COM` 及
 
 没有数据上传、遥测或远端分析。浏览器版的目录设置保存在 `~/.config/c3d-reader/settings.json`，界面偏好保存在浏览器本地存储；桌面版的目录设置、`preferences.json` 界面偏好和启动日志保存在 `~/Library/Application Support/c3d-reader/`，最近打开记录由 macOS 管理。可用 `C3D_READER_CONFIG_DIR` 改变设置目录。实验文件不会复制到仓库。`.gitignore` 默认排除 C3D、Vicon 校准 / 模型文件、CSV 导出、配置、构建包及本地测试输出。
 
-公开验证统计和演示素材使用 `backend/demo.py` 生成的合成数据。桌面构建在签名前移除依赖的安装记录和本地来源元数据，并检查文件、压缩内容和冻结 Python 模块中的构建机路径、常见凭据格式及不应分发的文件。此检查不能替代人工隐私审查。旧 Git 提交中的历史验证统计不会因更新当前文档而自动消失。
+公开验证统计和应用内置示例使用 `backend/demo.py` 生成的合成数据。README 演示使用实测步行采集录制，画面隐藏姓名、原始文件名和本机路径，原始采集与校准文件不分发。桌面构建在签名前移除依赖的安装记录和本地来源元数据，并检查文件、压缩内容和冻结 Python 模块中的构建机路径、常见凭据格式及不应分发的文件。此检查不能替代人工隐私审查。旧 Git 提交中的历史验证统计不会因更新当前文档而自动消失。
 
 请只将本地服务用于你自己的可信设备。程序没有多用户认证，不用于公开互联网部署。
 

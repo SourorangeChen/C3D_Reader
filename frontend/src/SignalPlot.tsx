@@ -55,8 +55,11 @@ export const SignalPlot = memo(function SignalPlot({
       left +
       ((t - data.start) / Math.max(0.001, data.stop - data.start)) *
         (width - left - right);
+    // The tick range is already nonzero, including for constant signals.
+    // A fixed lower bound here flattens small signals in source units (e.g. V)
+    // and makes the curve disagree with its own tick labels.
     const y = (v: number) =>
-      top + ((hi - v) / Math.max(0.001, hi - lo)) * (height - top - bottom);
+      top + ((hi - v) / (hi - lo)) * (height - top - bottom);
     const ticks = [];
     for (let v = lo; v <= hi + step / 10; v += step) ticks.push(v);
     const paths = data.series.map((s) => {
@@ -132,7 +135,7 @@ export const SignalPlot = memo(function SignalPlot({
                   fill="var(--muted)"
                   fontSize="11"
                 >
-                  {Math.abs(v) >= 10000
+                  {Math.abs(v) >= 10000 || (v !== 0 && Math.abs(v) < 0.001)
                     ? v.toExponential(1)
                     : Number(v.toPrecision(4))}
                 </text>
@@ -226,7 +229,13 @@ export const SignalPlot = memo(function SignalPlot({
             return (
               axes[i % 3] && (
                 <span key={i} style={{ color: COLORS[i % 3] }}>
-                  {s.name} {s.values[lo]?.toFixed(2) ?? "—"} {s.unit}
+                  {s.name}{" "}
+                  {s.values[lo] == null
+                    ? "—"
+                    : s.values[lo] !== 0 && Math.abs(s.values[lo]!) < 0.01
+                      ? s.values[lo]!.toExponential(2)
+                      : s.values[lo]!.toFixed(2)}{" "}
+                  {s.unit}
                 </span>
               )
             );
