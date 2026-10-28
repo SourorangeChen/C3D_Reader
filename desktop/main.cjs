@@ -283,6 +283,7 @@ async function start() {
       callback({
         cancel:
           !details.url.startsWith(baseURL + "/") &&
+          !details.url.startsWith("blob:" + baseURL + "/") &&
           !details.url.startsWith("devtools:"),
       });
     },
@@ -302,6 +303,13 @@ async function start() {
   ipcMain.handle("c3d:open-path", (event, filePath) => {
     checkSender(event);
     return enqueueOpen(filePath);
+  });
+  ipcMain.handle("c3d:auto-alignment", (event, options) => {
+    checkSender(event);
+    if (!options || !Array.isArray(options.paths) || options.paths.length > 50000 ||
+        options.paths.some(file => typeof file !== "string" || !path.isAbsolute(file)))
+      throw new Error("无法读取自动对齐素材，请重新导入本机文件。");
+    return serviceRequest("/api/desktop/auto-alignment", options);
   });
   ipcMain.handle("c3d:ready", (event) => {
     checkSender(event);

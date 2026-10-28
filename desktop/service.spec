@@ -5,7 +5,7 @@ root = Path(SPECPATH).parent
 analysis = Analysis(
     [str(root / 'desktop' / 'server.py')],
     pathex=[str(root)],
-    binaries=[],
+    binaries=[(str(root / 'build' / 'pose-worker' / 'c3d-pose-worker'), 'native')],
     datas=[(str(root / 'frontend' / 'dist'), 'frontend/dist')],
     hiddenimports=['uvicorn.logging', 'uvicorn.loops.asyncio', 'uvicorn.protocols.http.h11_impl', 'uvicorn.lifespan.on'],
     hookspath=[], hooksconfig={}, runtime_hooks=[],

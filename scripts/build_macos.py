@@ -94,6 +94,19 @@ def main():
     if not npm:
         raise SystemExit("Node.js is required on the build machine.")
     run(npm, "run", "build")
+    pose_worker = ROOT / "build" / "pose-worker" / "c3d-pose-worker"
+    pose_worker.parent.mkdir(parents=True, exist_ok=True)
+    run(
+        "xcrun",
+        "swiftc",
+        "-O",
+        "-parse-as-library",
+        "-target",
+        "arm64-apple-macosx14.0",
+        "desktop/pose_worker.swift",
+        "-o",
+        str(pose_worker),
+    )
     assets = ROOT / "desktop" / "assets"
     assets.mkdir(parents=True, exist_ok=True)
     iconset = ROOT / "build" / "icon.iconset"
@@ -120,7 +133,10 @@ def main():
     collect_licenses()
     run(
         str(ROOT / "node_modules/.bin/electron-builder"),
-        "--mac", "--arm64", "--publish", "never",
+        "--mac",
+        "--arm64",
+        "--publish",
+        "never",
         f"--config.directories.output={output}",
     )
     bundle = output / "mac-arm64/C3D Reader.app"

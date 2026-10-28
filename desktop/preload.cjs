@@ -2,6 +2,12 @@ const { contextBridge, ipcRenderer, webUtils } = require("electron");
 
 contextBridge.exposeInMainWorld("c3dDesktop", {
   platform: "macOS",
+  startAutoAlignment: (files, options) => {
+    const paths = files.map(file => webUtils.getPathForFile(file));
+    if (!paths.length || paths.some(path => !path))
+      return Promise.reject(new Error("无法读取自动对齐素材，请重新导入本机文件。"));
+    return ipcRenderer.invoke("c3d:auto-alignment", { ...options, paths });
+  },
   openFile: () => ipcRenderer.invoke("c3d:choose-file"),
   openFolder: () => ipcRenderer.invoke("c3d:choose-folder"),
   openDroppedFile: (file) => {

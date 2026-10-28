@@ -1,4 +1,4 @@
-# macOS desktop application — v0.3.4
+# macOS desktop application — v0.4.1
 
 The desktop build embeds the existing workbench in an Electron window and packages the Python service with PyInstaller. End users do not need Python, Node.js, a terminal or an external browser. The current deliverable targets Apple Silicon, macOS 14 and newer. It has an ad-hoc signature; it is not notarized or signed with an Apple Developer ID distribution certificate.
 
@@ -24,15 +24,33 @@ Batch export snapshots the current directory and runs one background worker. It 
 
 The main CSV dialog now defaults to all point channels and the full acquisition. It offers a COM-only mode, the selected channel, all analog channels, and an optional observation range. COM identification uses exact normalized source labels, with 3D COM and floor projection distinguished; it does not estimate or recompute values. Existing direct export links retain selected-channel behavior for compatibility.
 
+## Local media synchronization
+
+Version 0.4.1 adds automatic action matching immediately after video import, or
+once image FPS/PTS is supplied. A bundled Swift worker uses system Vision and
+AVFoundation, and the local service fits Vicon joints against observed image
+joints over candidate constant offsets. Reliable results apply automatically;
+weak, ambiguous and boundary results require review. There is no model download.
+The worker reads selected files through a private desktop bridge without copying
+them. Cancelling, replacing media, manual alignment and app shutdown stop work
+and prevent stale results from applying. Video presentation time drives playback.
+
+Manual anchors, COM alignment JSON, timestamp baselines and searches against
+existing CSV signals remain available. The network policy permits local blob
+media/profile downloads and rejects external requests. See
+[timing, algorithm and data conventions](media-sync.md).
+
 ## Verification on the development Mac
 
-- 48 Python/API/packaging regression tests, including authorization, direct file registration, invalid-drop preservation and package privacy checks.
-- 16 browser regression tests, including immediate WebGL theme updates and system-theme changes.
-- 8 Electron integration tests, run against both the development launcher and the **packaged app**: native-backed drag/drop, running-app Finder events, native dialog selection, cold launch with a file, invalid-extension handling child-service shutdown, native Settings and preference persistence across app restarts / changing ports, native batch ZIP downloads, and full-point CSV downloads including source COM.
+- 77 Python/API/packaging regression tests, including authorization, direct file registration, invalid-drop preservation, bounded signal alignment and package privacy checks.
+- 37 browser regression tests cover the workbench and media synchronization, including actual video presentation timing, numbered image gaps, COM profile imports and known-offset signal searches.
+- 12 Electron integration tests passed against the **0.4.1 app copied out of its DMG**, using isolated settings: native-backed drag/drop, Finder events, native dialogs, cold launch, invalid-extension handling and service shutdown, Settings persistence, batch ZIP and full-point CSV downloads, image synchronization/profile downloads, actual video playback with the packaged alignment service, automatic matching from raw video, and numbered-image FPS/PTS matching. App metadata, the visible version and backend health all report 0.4.1.
+- The two optional local acceptance tests were also run against the DMG copy: they import a real video and numbered images without supplying any offset, then check automatic matching, original image PTS, first/middle/last seeks and synchronized playback. Source recordings and derived frames stay outside version control and the package.
 - The packaged Python executable was tested with the synthetic walking acquisition: 800 point frames, 35 markers and 4 analog channels, generated from `backend/demo.py`. Its bundled frontend, final frame and full-rate CSV export were checked without participant files.
 - `codesign --verify --deep --strict` passed. This verifies local signature consistency, not Developer ID trust or notarization.
+- The DMG includes its Applications shortcut. DMG and ZIP integrity and both SHA-256 checksums passed. This local build is in `release/`; it has not been published to GitHub Releases.
 
-The icon is drawn from the existing marker-and-segment brand by `scripts/make_icon.swift`. `scripts/build_macos.py` freezes the service, embeds assets, builds and signs the app, then creates a DMG, ZIP and checksums. The DMG includes an Applications link for drag-to-install and is verified with `hdiutil verify`. Build outputs are ignored by Git; only the standalone application DMG, ZIP and checksum file should be attached to a release. Source `.c3d` files, settings, recent-file state and local logs are excluded.
+The icon is drawn from the existing marker-and-segment brand by `scripts/make_icon.swift`. `scripts/build_macos.py` compiles the native pose worker, freezes the service, embeds assets, builds and signs the app, then creates a DMG, ZIP and checksums. The DMG includes an Applications link for drag-to-install and is verified with `hdiutil verify`. Build outputs are ignored by Git; only the standalone application DMG, ZIP and checksum file should be attached to a release. Source `.c3d` files, settings, recent-file state and local logs are excluded.
 
 Before signing, `scripts/package_privacy.py` removes `.dist-info/RECORD` and `direct_url.json`. Runtime package versions, dependency metadata and licenses remain available. The build then checks the signed bundle's regular files, ZIP members and decompressed frozen Python modules for its source/home paths, common credential formats and non-distributable filenames. The check reports package member names without echoing matched private values. On GitHub Actions, the generic `/Users/runner` or `/home/runner` home prefix is exempt because upstream wheels can contain that same anonymous account; this project's full workspace is always blocked. Personal build homes remain blocked outside that exception. Upstream runtime build paths are not personal paths belonging to this project's builder; identifier detection still requires manual review. Use `npm run desktop:build -- --output .local/desktop-build` to choose an isolated output directory.
 

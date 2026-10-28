@@ -90,6 +90,10 @@ export const SignalPlot = memo(function SignalPlot({
         (data.stop - data.start);
     onSeek(t);
   };
+  const timeDigits = Math.min(
+    9,
+    Math.max(3, Math.ceil(Math.log10(data?.sampleRate || 1))),
+  );
   return (
     <div className="signal-plot" ref={host}>
       <svg
@@ -217,8 +221,12 @@ export const SignalPlot = memo(function SignalPlot({
       </svg>
       {hover != null && data && (
         <div className="chart-tooltip">
-          <span>{hover.toFixed(3)} s</span>
+          <span>
+            {t("游标 {0} s", [hover.toFixed(timeDigits)])}
+            <small>{t("最近显示采样")}</small>
+          </span>
           {data.series.map((s, i) => {
+            if (!axes[i % 3] || !s.times.length) return null;
             let lo = 0,
               hi = s.times.length - 1;
             while (lo < hi) {
@@ -226,18 +234,22 @@ export const SignalPlot = memo(function SignalPlot({
               if (s.times[mid] < hover) lo = mid + 1;
               else hi = mid;
             }
+            // The lower bound is the right neighbor. Compare both sides;
+            // retain null samples so hovering a gap never invents a value.
+            if (lo > 0 && hover - s.times[lo - 1] <= s.times[lo] - hover) lo--;
             return (
-              axes[i % 3] && (
-                <span key={i} style={{ color: COLORS[i % 3] }}>
-                  {s.name}{" "}
-                  {s.values[lo] == null
-                    ? "—"
-                    : s.values[lo] !== 0 && Math.abs(s.values[lo]!) < 0.01
-                      ? s.values[lo]!.toExponential(2)
-                      : s.values[lo]!.toFixed(2)}{" "}
-                  {s.unit}
-                </span>
-              )
+              <span key={i} style={{ color: COLORS[i % 3] }}>
+                {s.name}{" "}
+                {s.values[lo] == null
+                  ? "—"
+                  : s.values[lo] !== 0 && Math.abs(s.values[lo]!) < 0.01
+                    ? s.values[lo]!.toExponential(2)
+                    : s.values[lo]!.toFixed(2)}{" "}
+                {s.unit}
+                <small>
+                  {t("采样 {0} s", [s.times[lo].toFixed(timeDigits)])}
+                </small>
+              </span>
             );
           })}
         </div>

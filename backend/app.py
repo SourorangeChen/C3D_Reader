@@ -4,24 +4,37 @@ import secrets
 import struct
 import threading
 from collections import OrderedDict
+from contextlib import asynccontextmanager
 from pathlib import Path
+from typing import Optional
 from urllib.parse import urlparse
 
 import numpy as np
 from fastapi import FastAPI, Header, HTTPException, Query, Request
 from fastapi.responses import FileResponse, JSONResponse, Response, StreamingResponse
 from fastapi.staticfiles import StaticFiles
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from starlette.middleware.trustedhost import TrustedHostMiddleware
 
 from .acquisition import Acquisition, clean_json
+from .alignment import estimate_lag
+from .automatic_sync import AutomaticAlignments
 from .batch_export import BatchExports
 from .demo import DEMO_REVISION, create_demo
 
 ROOT = Path(__file__).resolve().parents[1]
 CONFIG_DIR = Path(os.environ.get("C3D_READER_CONFIG_DIR", Path.home() / ".config" / "c3d-reader"))
 CONFIG_DIR.mkdir(parents=True, exist_ok=True)
-app = FastAPI(title="C3D Reader", version="0.3.4", docs_url=None, redoc_url=None)
+automatic_alignments = AutomaticAlignments()
+
+
+@asynccontextmanager
+async def lifespan(_app):
+    yield
+    automatic_alignments.shutdown()
+
+
+app = FastAPI(title="C3D Reader", version="0.4.1", docs_url=None, redoc_url=None, lifespan=lifespan)
 app.add_middleware(
     TrustedHostMiddleware,
     allowed_hosts=["localhost", "127.0.0.1", "[::1]", "testserver"],
@@ -148,6 +161,54 @@ def desktop_open(file: Folder, x_desktop_token: str = Header(default="")):
     library["root"] = str(path.parent)
     (CONFIG_DIR / "settings.json").write_text(json.dumps({"folder": str(path.parent)}))
     return dict(acquisition=result, library=list_library())
+
+
+class AutomaticAlignmentRequest(BaseModel):
+    acquisitionId: str
+    paths: list[str] = Field(min_length=1, max_length=50000)
+    start: int = 0
+    stop: Optional[int] = None
+    times: Optional[list[float]] = Field(default=None, max_length=50000)
+    origin: float = 0
+    subjectX: float = Field(default=0.5, ge=0, le=1)
+
+
+@app.post("/api/desktop/auto-alignment")
+def start_automatic_alignment(
+    body: AutomaticAlignmentRequest, x_desktop_token: str = Header(default="")
+):
+    require_desktop(x_desktop_token)
+    acquisition = get_acq(body.acquisitionId)
+    start, stop = frame_range(acquisition, body.start, body.stop)
+    try:
+        return automatic_alignments.start(
+            acquisition, body.paths, start, stop, body.times, body.origin, body.subjectX
+        )
+    except (ValueError, OSError) as error:
+        raise HTTPException(
+            400,
+            str(error)
+            if isinstance(error, ValueError)
+            else "无法读取自动对齐素材，请重新导入本机文件。",
+        ) from error
+
+
+@app.get("/api/auto-alignment/{key}")
+def automatic_alignment_status(key: str):
+    try:
+        return automatic_alignments.get(key).snapshot()
+    except KeyError as error:
+        raise HTTPException(404, "自动对齐任务已失效，请重试。") from error
+
+
+@app.delete("/api/auto-alignment/{key}")
+def cancel_automatic_alignment(key: str):
+    try:
+        job = automatic_alignments.get(key)
+        job.cancel()
+        return job.snapshot()
+    except KeyError as error:
+        raise HTTPException(404, "自动对齐任务已失效，请重试。") from error
 
 
 @app.get("/api/library")
@@ -346,6 +407,71 @@ def parameters(key: str):
     return get_acq(key).parameters()
 
 
+class AlignmentRequest(BaseModel):
+    times: list[float] = Field(min_length=8, max_length=200000)
+    values: list[Optional[float]] = Field(min_length=8, max_length=200000)
+    kind: str = Field(default="point", pattern="^(point|analog)$")
+    channel: int = Field(ge=0)
+    axis: int = Field(default=2, ge=0, le=2)
+    direction: int = Field(default=1, ge=-1, le=1)
+    start: int = 0
+    stop: Optional[int] = None
+    baseline: float = 0
+    low: float = -2
+    high: float = 2
+    step: float = 0.01
+    maxGap: float = 0.08
+
+
+@app.post("/api/files/{key}/alignment")
+def align_signals(key: str, body: AlignmentRequest):
+    acq = get_acq(key)
+    start, stop = frame_range(acq, body.start, body.stop)
+    indices_for(acq, body.kind, str(body.channel))
+    if body.direction not in (-1, 1):
+        raise HTTPException(400, "Signal direction must be +1 or -1.")
+    if (stop - start) * (acq.samples if body.kind == "analog" else 1) > 200000:
+        raise HTTPException(
+            400, "The alignment interval is too large. Select a shorter frame range."
+        )
+    if body.kind == "point":
+        raw = acq.data["points"][start:stop, body.channel]
+        values = raw[:, body.axis].astype(float)
+        if acq.scale >= 0:
+            values *= acq.scale
+        values[(raw[:, 3] < 0) | ~np.isfinite(raw).all(axis=-1)] = np.nan
+        times = np.arange(start, stop) / acq.rate
+    else:
+        values = acq.analog(body.channel, start, stop)
+        times = np.arange(start * acq.samples, stop * acq.samples) / acq.analog_rate
+    try:
+        result = estimate_lag(
+            times,
+            values * body.direction,
+            body.times,
+            body.values,
+            baseline=body.baseline,
+            low=body.low,
+            high=body.high,
+            step=body.step,
+            max_gap=body.maxGap,
+        )
+    except ValueError as exc:
+        raise HTTPException(400, str(exc)) from exc
+    return dict(
+        **result,
+        reference=dict(
+            kind=body.kind,
+            channel=body.channel,
+            axis=body.axis,
+            direction=body.direction,
+            start=start,
+            stop=stop,
+        ),
+        convention="video_pts_s = baseline + lag + c3d_relative_time_s",
+    )
+
+
 @app.get("/api/files/{key}/export")
 def export(
     key: str,
@@ -379,7 +505,7 @@ def export(
 
 @app.get("/api/health")
 def health():
-    return {"status": "ok", "version": "0.3.4"}
+    return {"status": "ok", "version": "0.4.1"}
 
 
 dist = ROOT / "frontend" / "dist"

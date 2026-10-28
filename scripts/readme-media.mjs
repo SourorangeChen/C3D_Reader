@@ -1,11 +1,11 @@
 /** Render README artwork and record the real workbench.
- * C3D_MEDIA_SOURCE selects a local recording; otherwise use the synthetic trial.
+ * Publication captures use only the built-in synthetic trial.
  * Run after npm run build: FFMPEG_BINARY=/path/to/ffmpeg node scripts/readme-media.mjs
  * Requires Playwright Chromium (npx playwright install chromium).
  */
 import { chromium, _electron as electron } from "playwright";
 import { spawn, spawnSync } from "node:child_process";
-import { mkdir, mkdtemp, readFile, symlink, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, writeFile } from "node:fs/promises";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -13,8 +13,11 @@ const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const scratch = join(root, ".local/readme-media");
 const output = join(root, "docs/media");
 const url = "http://127.0.0.1:8013";
-const source = process.env.C3D_MEDIA_SOURCE;
-const title = source ? "Walking-trial.c3d" : "Synthetic walking";
+if (process.env.C3D_MEDIA_SOURCE)
+  throw new Error(
+    "README media must use synthetic data. Unset C3D_MEDIA_SOURCE.",
+  );
+const title = "Synthetic walking";
 const ffmpeg = process.env.FFMPEG_BINARY || "ffmpeg";
 if (spawnSync(ffmpeg, ["-version"], { stdio: "ignore" }).status !== 0)
   throw new Error("Set FFMPEG_BINARY to an ffmpeg executable.");
@@ -24,14 +27,7 @@ await mkdir(output, { recursive: true });
 // A fresh directory also prevents a previous generated C3D from being reused
 // when iterating on demo.py without changing its release revision yet.
 const config = await mkdtemp(join(scratch, "config-"));
-const dataFolder = source ? join(config, "recordings") : "";
-if (source) {
-  if (!source.toLowerCase().endsWith(".c3d"))
-    throw new Error("Expected a C3D recording.");
-  await mkdir(dataFolder);
-  // Read through a neutral alias; never copy the recording or expose its path.
-  await symlink(resolve(source), join(dataFolder, title));
-}
+const dataFolder = "";
 await writeFile(
   join(config, "settings.json"),
   JSON.stringify({ folder: dataFolder }),
@@ -63,58 +59,24 @@ try {
     await new Promise((r) => setTimeout(r, 250));
   }
   const library = await fetch(`${url}/api/library`).then((r) => r.json());
-  if (
-    source
-      ? library.files.length !== 1 || library.files[0].name !== title
-      : library.folder || library.files.length
-  )
+  if (library.folder || library.files.length)
     throw new Error("Unexpected files in the isolated media library.");
-  const fileId = source ? library.files[0].id : "demo";
-  const meta = await fetch(`${url}/api/files/${fileId}`).then((r) => r.json());
-  // This workflow uses only standard channel labels. It does not record the raw
-  // parameter inspector, which can contain identifying source metadata.
+  const meta = await fetch(`${url}/api/files/demo`).then((r) => r.json());
   if (
-    source &&
-    [...meta.points, ...meta.analogs].some((p) => p.label.includes(":"))
+    library.demo?.id !== "demo" ||
+    library.demo?.name !== title ||
+    !/^synthetic-walking-v\d+\.c3d$/.test(meta.name)
   )
     throw new Error(
-      "Remove identifying subject prefixes before recording media.",
+      "Only the built-in synthetic acquisition may be published.",
     );
-  const captureFrame = source
-    ? meta.firstFrame + Math.floor(meta.frameCount / 2)
-    : 145;
-  const force = meta.analogs.find(
-    (p) => p.label === (source ? "Force.Fz2" : "Left force Fz"),
-  );
-  const emg = meta.analogs.find(
-    (p) => p.label === (source ? "Sensor 1.EMG1" : "Left tibialis EMG"),
-  );
+  const captureFrame = 145;
+  const force = meta.analogs.find((p) => p.label === "Left force Fz");
+  const emg = meta.analogs.find((p) => p.label === "Left tibialis EMG");
   if (!force || !emg)
     throw new Error(
       "The recording needs the requested force and EMG channels.",
     );
-  const selectKnee = async (scope) => {
-    if (!source) return;
-    await scope.locator(".channel-tabs").getByRole("tab").nth(1).click();
-    await scope
-      .getByRole("button", { name: "LKneeAngles", exact: true })
-      .click();
-    await scope
-      .locator(".signal-heading")
-      .getByText("LKneeAngles", { exact: true })
-      .waitFor();
-    await scope
-      .getByRole("textbox", { name: "搜索通道", exact: true })
-      .fill("KneeAngles");
-  };
-  const zoomRecording = async (scope, owner) => {
-    if (!source) return;
-    await scope.locator(".viewer-shell canvas").hover();
-    await owner.mouse.wheel(0, -750);
-    await owner.waitForTimeout(200);
-    await scope.getByRole("heading", { name: title }).click();
-    await owner.mouse.move(10, 10);
-  };
   browser = await chromium.launch({
     args: [
       "--use-gl=angle",
@@ -138,8 +100,6 @@ try {
   await page.waitForTimeout(700);
   if (await page.locator(".error-text, .error-banner").count())
     throw new Error("Demo error.");
-  await selectKnee(page);
-  await zoomRecording(page, page);
   await page.waitForTimeout(250);
   const screenshot = await page.screenshot();
   await writeFile(join(root, "docs/screenshot.png"), screenshot);
@@ -197,15 +157,15 @@ try {
       <p class="tagline">${zh ? "看见动作，<br>读懂数据。" : "Explore motion.<br>Inspect your data."}</p>
       <p class="description">${zh ? "本地 C3D 动作数据工作台<br>打开文件，查看信号，导出 CSV。" : "A local C3D motion workspace.<br>Open, inspect and export."}</p>
       <p class="platform"><b>macOS 14+ · Apple Silicon</b><br>${zh ? "开源 · 本地处理 · 只读访问" : "Open source · Local processing · Read-only"}</p></div>
-      <div class="preview"><div class="screen"><div class="chrome"><i></i><i></i><i></i><span>C3D Reader · ${source ? "Walking trial" : "Synthetic walking"}</span></div><img src="${screens[lang]}"></div>
+      <div class="preview"><div class="screen"><div class="chrome"><i></i><i></i><i></i><span>C3D Reader · ${title}</span></div><img src="${screens[lang]}"></div>
       <div class="features">${(zh ? ["3D 标记点", "同步信号与事件", "全采样率 CSV"] : ["3D markers", "Signals & events", "Full-rate CSV"]).map((t) => `<span><i></i>${t}</span>`).join("")}</div>
-      <p class="note">${source ? (zh ? "真实界面 · 实测步行数据" : "Actual interface · Recorded walking data") : zh ? "真实界面 · 合成步行数据" : "Actual interface · Synthetic walking data"}</p></div></main></html>`);
+      <p class="note">${zh ? "真实界面 · 合成步行数据" : "Actual interface · Synthetic walking data"}</p></div></main></html>`);
     await page.evaluate(() => document.fonts.ready);
     await page.screenshot({ path: join(output, `overview.${lang}.png`) });
   }
   await context.close();
 
-  // Record actual UI interaction with the selected acquisition.
+  // Record actual UI interaction with the synthetic acquisition only.
   const videoContext = await browser.newContext({
     viewport: { width: 1280, height: 860 },
     recordVideo: { dir: scratch, size: { width: 1280, height: 860 } },
@@ -215,7 +175,7 @@ try {
     body{margin:0;background:#171719;font-family:"Public Sans","PingFang SC",sans-serif;color:#eef0f3}
     header{height:60px;box-sizing:border-box;display:flex;align-items:center;justify-content:space-between;padding:0 24px;border-bottom:1px solid #41414a}
     b{font-size:18px}span{font-size:16px;color:#a9c8ef}iframe{border:0;width:1280px;height:800px;display:block}
-    </style><header><b>C3D Reader · Demo</b><span id="chapter">3D playback / 三维播放</span></header><iframe src="${url}"></iframe></html>`);
+    </style><header><b>C3D Reader · Synthetic demo / 合成示例</b><span id="chapter">3D playback / 三维播放</span></header><iframe src="${url}"></iframe></html>`);
   const app = demo.frameLocator("iframe");
   await app.getByRole("heading", { name: title }).waitFor();
   await app.locator(".signal-plot path").nth(1).waitFor();
@@ -232,7 +192,7 @@ try {
   await chapter("Views & marker trails / 视角与标记点轨迹");
   await app
     .getByRole("combobox", { name: "视角", exact: true })
-    .selectOption(source ? "front" : "side");
+    .selectOption("side");
   await app.getByRole("button", { name: "轨迹", exact: true }).click();
   await app.getByRole("button", { name: "播放", exact: true }).click();
   await demo.waitForTimeout(2200);
@@ -240,13 +200,7 @@ try {
   await app
     .getByRole("combobox", { name: "视角", exact: true })
     .selectOption("perspective");
-  if (source) {
-    await chapter("Recorded knee angles / 实测膝关节角度");
-    await selectKnee(app);
-    await app.getByRole("button", { name: "播放", exact: true }).click();
-    await demo.waitForTimeout(2200);
-    await app.getByRole("button", { name: "暂停", exact: true }).click();
-  }
+
   await chapter(
     `Analog signals at ${meta.analogRate.toLocaleString("en")} Hz / 模拟信号`,
   );
@@ -261,18 +215,11 @@ try {
     .locator(".signal-heading")
     .getByText(`${meta.analogRate} Hz`)
     .waitFor();
-  if (source) {
-    await demo.waitForTimeout(200);
-    await demo.screenshot({ path: join(scratch, "recorded-force.png") });
-  }
+
   await app.getByRole("button", { name: "播放", exact: true }).click();
   await demo.waitForTimeout(2800);
   await app.getByRole("button", { name: "暂停", exact: true }).click();
-  await chapter(
-    source
-      ? "Recorded EMG / 实测肌电信号"
-      : "Synthetic EMG bursts / 合成肌电信号",
-  );
+  await chapter("Synthetic EMG bursts / 合成肌电信号");
   await app
     .getByRole("textbox", { name: "搜索通道", exact: true })
     .fill(emg.label);
@@ -283,10 +230,7 @@ try {
     .locator(".signal-heading")
     .getByText(emg.label, { exact: true })
     .waitFor();
-  if (source) {
-    await demo.waitForTimeout(200);
-    await demo.screenshot({ path: join(scratch, "recorded-emg.png") });
-  }
+
   await app.getByRole("button", { name: "播放", exact: true }).click();
   await demo.waitForTimeout(1800);
   await app.getByRole("button", { name: "暂停", exact: true }).click();
@@ -335,11 +279,7 @@ try {
     await demo.waitForTimeout(120);
   }
   await demo.waitForTimeout(1200);
-  await chapter(
-    source
-      ? "Recorded walking data / 实测步行数据"
-      : "Synthetic data only / 仅使用合成数据",
-  );
+  await chapter("Synthetic data only / 仅使用合成数据");
   await demo.waitForTimeout(900);
   const duration = (Date.now() - start) / 1000;
   // The video begins at page creation; omit startup frames before the first chapter.
@@ -414,8 +354,6 @@ try {
       await native.waitForTimeout(700);
       if (await native.locator(".error-text, .error-banner").count())
         throw new Error("Desktop demo error.");
-      await selectKnee(native);
-      await zoomRecording(native, native);
       await native.waitForTimeout(250);
       await native.screenshot({
         path: join(root, "docs/desktop.jpg"),

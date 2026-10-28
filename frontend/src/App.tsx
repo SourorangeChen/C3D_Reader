@@ -4,7 +4,16 @@ import { defaultLayout } from "./Preferences";
 import { PanelDivider } from "./PanelDivider";
 import { BatchExportDialog } from "./BatchExportDialog";
 import { ExportOptions } from "./ExportOptions";
-import { useCallback, useEffect, useRef, useState } from "react";
+import {
+  lazy,
+  Suspense,
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+} from "react";
+import { EMPTY_CLOCK, isImage, isVideo } from "./synchronization";
+import type { MediaClock } from "./synchronization";
 import {
   Activity,
   ArrowLeft,
@@ -20,6 +29,7 @@ import {
   Eye,
   EyeOff,
   File,
+  Film,
   FolderOpen,
   Info,
   Layers,
@@ -48,6 +58,9 @@ import type {
 } from "./types";
 
 const countFormat = new Intl.NumberFormat("en");
+const MediaPanel = lazy(() =>
+  import("./MediaPanel").then((module) => ({ default: module.MediaPanel })),
+);
 const kindName: Record<string, string> = {
   marker: "标记点",
   angle: "关节角度",
@@ -123,9 +136,14 @@ export default function App() {
   });
   const [frame, setFrame] = useState(0);
   const [playing, setPlaying] = useState(false);
+  const [showMedia, setShowMedia] = useState(false);
+  const [incomingMedia, setIncomingMedia] = useState<File[] | null>(null);
+  const [mediaClock, setMediaClock] = useState<MediaClock>(EMPTY_CLOCK);
+  const consumeMedia = useCallback(() => setIncomingMedia(null), []);
   const [speed, setSpeed] = useState(1);
   const [loop, setLoop] = useState(true);
   const [roi, setRoi] = useState<[number, number]>([0, 0]);
+  const playbackRange = mediaClock.mode ? mediaClock.range : roi;
   const [hidden, setHidden] = useState<Set<number>>(new Set());
   const [segments, setSegments] = useState(true);
   const [trails, setTrails] = useState(false);
@@ -160,7 +178,20 @@ export default function App() {
   const resizePanel = (key: keyof typeof layout, value: number) =>
     updatePreferences({ layout: { ...layout, [key]: value } });
   useEffect(() => desktop?.onSettings(() => setModal("settings")), []);
-  const { points, error: frameError } = useFrames(meta, frame);
+  const {
+    points,
+    error: frameError,
+    retry: retryFrames,
+  } = useFrames(meta, frame);
+  const sourceChanged = frameError?.action === "reopen";
+  useEffect(() => {
+    if (frameError) setPlaying(false);
+    if (frameError?.action === "reopen") {
+      setSeries(null);
+      setParams(null);
+      setModal((current) => (current === "export" ? null : current));
+    }
+  }, [frameError]);
   const currentPoint =
     selection.kind === "point" ? meta?.points[selection.id] : null;
   const currentAnalog =
@@ -171,6 +202,8 @@ export default function App() {
   const lastTime = meta ? (meta.frameCount - 1) / meta.pointRate : 0;
   const applyAcquisition = useCallback((data: Acquisition) => {
     setPlaying(false);
+    setMediaClock(EMPTY_CLOCK);
+    setIncomingMedia(null);
     setError("");
     setMeta(data);
     setFrame(0);
@@ -266,6 +299,12 @@ export default function App() {
     setDragging(false);
     const files = [...event.dataTransfer.files];
     if (!files.length) return;
+    if ((files.length === 1 && isVideo(files[0])) || files.every(isImage)) {
+      setPlaying(false);
+      setIncomingMedia(files);
+      setShowMedia(true);
+      return;
+    }
     if (files.length !== 1 || !/\.c3d$/i.test(files[0].name)) {
       setError(t("请一次拖入一个 .c3d 文件。"));
       return;
@@ -286,7 +325,7 @@ export default function App() {
     }
   };
   useEffect(() => {
-    if (!meta) return;
+    if (!meta || sourceChanged) return;
     const controller = new AbortController();
     setSeries(null);
     setSeriesError("");
@@ -301,9 +340,9 @@ export default function App() {
         if (e.name !== "AbortError") setSeriesError(e.message);
       });
     return () => controller.abort();
-  }, [meta, selection, roi]);
+  }, [meta, selection, roi, sourceChanged]);
   useEffect(() => {
-    if (inspector !== "parameters" || !meta || params) return;
+    if (inspector !== "parameters" || !meta || params || sourceChanged) return;
     const controller = new AbortController();
     void api<ParameterGroup[]>(`/api/files/${meta.id}/parameters`, {
       signal: controller.signal,
@@ -315,19 +354,33 @@ export default function App() {
         if (e.name !== "AbortError") setError(e.message);
       });
     return () => controller.abort();
-  }, [inspector, meta, params]);
+  }, [inspector, meta, params, sourceChanged]);
   useEffect(() => {
-    if (!playing || !meta || !points) return;
+    if (
+      !playing ||
+      !meta ||
+      !points ||
+      !playbackRange ||
+      mediaClock.mode === "video"
+    )
+      return;
     let handle = 0;
     const start = performance.now(),
       initial = frame;
     const tick = (now: number) => {
+      // The first rAF timestamp can precede `start`; never step before `initial`.
+      const elapsed = Math.max(0, now - start);
       const next =
-        initial + Math.floor(((now - start) / 1000) * meta.pointRate * speed);
-      if (next > roi[1]) {
-        if (loop) setFrame(roi[0] + ((next - roi[0]) % (roi[1] - roi[0] + 1)));
+        initial + Math.floor((elapsed / 1000) * meta.pointRate * speed);
+      if (next > playbackRange[1]) {
+        if (loop)
+          setFrame(
+            playbackRange[0] +
+              ((next - playbackRange[0]) %
+                (playbackRange[1] - playbackRange[0] + 1)),
+          );
         else {
-          setFrame(roi[1]);
+          setFrame(playbackRange[1]);
           setPlaying(false);
           return;
         }
@@ -337,18 +390,38 @@ export default function App() {
     handle = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(handle);
     // Restart the clock only on a chunk boundary or playback change.
-  }, [playing, meta, speed, loop, roi, Math.floor(frame / 500), !!points]);
+  }, [
+    playing,
+    meta,
+    speed,
+    loop,
+    playbackRange,
+    mediaClock.mode,
+    Math.floor(frame / 500),
+    !!points,
+  ]);
+  const advanceMediaFrame = useCallback(
+    (index: number) => {
+      if (meta && Number.isFinite(index))
+        setFrame(Math.max(0, Math.min(meta.frameCount - 1, index)));
+    },
+    [meta],
+  );
   const seek = useCallback(
     (index: number) => {
-      if (meta) setFrame(Math.max(roi[0], Math.min(roi[1], index)));
+      if (!meta) return;
+      setPlaying(false);
+      setFrame(Math.max(roi[0], Math.min(roi[1], index)));
     },
     [meta, roi],
   );
   const togglePlay = useCallback(() => {
-    if (!meta) return;
-    if (frame >= roi[1]) setFrame(roi[0]);
+    if (!meta || !playbackRange || frameError?.action === "reopen") return;
+    if (frameError) retryFrames();
+    if (frame < playbackRange[0] || frame >= playbackRange[1])
+      setFrame(playbackRange[0]);
     setPlaying((p) => !p);
-  }, [meta, frame, roi]);
+  }, [meta, frame, playbackRange, frameError, retryFrames]);
   useEffect(() => {
     const listener = (e: KeyboardEvent) => {
       if (
@@ -523,11 +596,11 @@ export default function App() {
         <div className="file-drop-overlay" role="status">
           <div>
             <File size={34} />
-            <h2>{t("松开以打开 C3D 文件")}</h2>
+            <h2>{t("松开以导入文件")}</h2>
             <p>
               {desktop
                 ? t("直接读取本机文件，支持大型采集")
-                : t("拖放打开功能适用于 macOS 桌面版")}
+                : t("支持视频或编号图片序列；C3D 拖放请使用桌面版")}
             </p>
           </div>
         </div>
@@ -840,14 +913,29 @@ export default function App() {
                   : meta?.name || "C3D Reader"}
               </h1>
             </div>
-            <button
-              className="button primary export-button"
-              disabled={!meta}
-              onClick={() => setModal("export")}
-            >
-              <Download size={14} />
-              <span>{t("导出 CSV")}</span>
-            </button>
+            <div className="trial-actions">
+              <button
+                className={`button ${showMedia ? "active" : ""}`}
+                disabled={!meta}
+                aria-pressed={showMedia}
+                onClick={() => {
+                  setPlaying(false);
+                  setShowMedia((value) => !value);
+                  setMediaClock(EMPTY_CLOCK);
+                }}
+              >
+                <Film size={14} />
+                {t("视频同步")}
+              </button>
+              <button
+                className="button primary export-button"
+                disabled={!meta || sourceChanged}
+                onClick={() => setModal("export")}
+              >
+                <Download size={14} />
+                <span>{t("导出 CSV")}</span>
+              </button>
+            </div>
           </div>
           <div className="trial-stats">
             <span>
@@ -880,18 +968,41 @@ export default function App() {
           </div>
           {(error || frameError) && !modal && (
             <div className="error-banner" role="alert">
-              <span>{t(error || frameError)}</span>
-              <button
-                className="icon-button"
-                aria-label={t("关闭错误提示")}
-                onClick={() => setError("")}
-              >
-                <X size={14} />
-              </button>
+              <span>{t(error || frameError?.message || "")}</span>
+              {error ? (
+                <button
+                  className="icon-button"
+                  aria-label={t("关闭错误提示")}
+                  onClick={() => setError("")}
+                >
+                  <X size={14} />
+                </button>
+              ) : frameError ? (
+                <button
+                  className="button"
+                  disabled={!!loading}
+                  onClick={() => {
+                    setPlaying(false);
+                    if (frameError.action === "reopen" && meta)
+                      void openFile(meta.id);
+                    else retryFrames();
+                  }}
+                >
+                  <RefreshCw size={13} />
+                  {t(
+                    frameError.action === "reopen"
+                      ? "重新打开文件"
+                      : "重试读取",
+                  )}
+                </button>
+              ) : null}
             </div>
           )}
           <div className="visual-panels">
-            <section className="scene-panel" aria-label={t("三维视图")}>
+            <section
+              className={`scene-panel ${showMedia ? "with-media" : ""}`}
+              aria-label={t("三维视图")}
+            >
               <div className="scene-toolbar">
                 <div className="toolbar-group">
                   <Box size={14} />
@@ -944,27 +1055,62 @@ export default function App() {
                   </IconButton>
                 </div>
               </div>
-              {meta ? (
-                <Viewer
-                  meta={meta}
-                  frame={frame}
-                  points={points}
-                  selected={
-                    currentPoint?.kind === "marker" ? selection.id : null
-                  }
-                  hidden={hidden}
-                  segments={segments}
-                  trails={trails}
-                  labels={labels}
-                  view={view}
-                  up={up}
-                  onSelect={pickPoint}
-                />
-              ) : (
-                <div className="viewer-placeholder">
-                  {t("选择一个 C3D 文件开始查看")}
-                </div>
-              )}
+              <div
+                className={`scene-content ${showMedia && meta ? "has-media" : ""}`}
+              >
+                {meta ? (
+                  <Viewer
+                    meta={meta}
+                    frame={frame}
+                    points={points}
+                    selected={
+                      currentPoint?.kind === "marker" ? selection.id : null
+                    }
+                    hidden={hidden}
+                    segments={segments}
+                    trails={trails && !sourceChanged}
+                    labels={labels}
+                    view={view}
+                    up={up}
+                    onSelect={pickPoint}
+                  />
+                ) : (
+                  <div className="viewer-placeholder">
+                    {t("选择一个 C3D 文件开始查看")}
+                  </div>
+                )}
+                {showMedia && meta && (
+                  <Suspense
+                    fallback={
+                      <div className="media-loading">
+                        {t("正在打开同步面板…")}
+                      </div>
+                    }
+                  >
+                    <MediaPanel
+                      key={`${meta.id}:${meta.firstFrame}:${meta.frameCount}:${meta.pointRate}`}
+                      meta={meta}
+                      frame={frame}
+                      playing={playing}
+                      speed={speed}
+                      loop={loop}
+                      roi={roi}
+                      selection={selection}
+                      framesReady={!!points}
+                      blocked={sourceChanged}
+                      incoming={incomingMedia}
+                      onConsumed={consumeMedia}
+                      onClock={setMediaClock}
+                      onFrame={advanceMediaFrame}
+                      onPlaying={setPlaying}
+                      onClose={() => {
+                        setShowMedia(false);
+                        setMediaClock(EMPTY_CLOCK);
+                      }}
+                    />
+                  </Suspense>
+                )}
+              </div>
               <div className="scene-legend">
                 <span>
                   <i className="dot left" />
@@ -1083,7 +1229,7 @@ export default function App() {
                 <button
                   className="play-button"
                   aria-label={playing ? t("暂停") : t("播放")}
-                  disabled={!meta}
+                  disabled={!meta || sourceChanged || !playbackRange}
                   onClick={togglePlay}
                 >
                   {playing ? (
@@ -1696,7 +1842,7 @@ export default function App() {
                 </div>
                 <p className="form-note">
                   {t(
-                    "支持 Intel / MIPS 的浮点及整数 C3D。当前版本不包含视频同步、C3D 编辑写回和力台 COP / GRF 解算。",
+                    "支持 Intel / MIPS 的浮点及整数 C3D，以及视频和编号图片序列同步。当前版本不包含 C3D 编辑写回和力台 COP / GRF 解算。",
                   )}
                 </p>
                 <div className="modal-actions">

@@ -1,5 +1,7 @@
+import { mediaEnglish } from "./mediaTranslations";
 // UI copy only. Acquisition labels, events and parameter values remain verbatim.
 export const english: Record<string, string> = {
+  ...mediaEnglish,
   "导出任务已失效，请重新开始。":
     "The export task is no longer available. Start a new export.",
   "暂时无法连接导出服务，正在重试…":
@@ -40,6 +42,13 @@ export const english: Record<string, string> = {
     "Point CSVs contain one row per frame and columns for all selected points. Original labels, units, frame numbers and full sampling rates are preserved. COM and floor projections are kept separately without recalculation.",
   "无法读取帧数据，请检查硬盘连接。":
     "Cannot read frame data. Check the drive connection.",
+  "暂时无法读取帧数据，请重试。":
+    "Frame data is temporarily unavailable. Please retry.",
+  重试读取: "Retry reading",
+  重新打开文件: "Reopen file",
+  "游标 {0} s": "Cursor {0} s",
+  最近显示采样: "Nearest displayed samples",
+  "采样 {0} s": "Sample {0} s",
   "无法获取这个文件的本地路径。": "Cannot get the local path of this file.",
   "请选择有效的 .c3d 文件。": "Choose a valid .c3d file.",
   "请拖入一个 .c3d 文件。": "Drop a .c3d file.",
@@ -219,8 +228,8 @@ export const english: Record<string, string> = {
   数据约定: "Data conventions",
   "默认 Z 轴向上，可切换 Y 轴。连线根据常用 Plug-in Gait 标签推断；力台只展示轮廓，力与力矩可在模拟通道查看。":
     "Z is up by default; Y-up is available. Segments are inferred from common Plug-in Gait labels. Force plates show outlines; forces and moments appear as analog channels.",
-  "支持 Intel / MIPS 的浮点及整数 C3D。当前版本不包含视频同步、C3D 编辑写回和力台 COP / GRF 解算。":
-    "Supports Intel / MIPS float and integer C3D. Video sync, C3D editing and force plate COP / GRF calculations are not included.",
+  "支持 Intel / MIPS 的浮点及整数 C3D，以及视频和编号图片序列同步。当前版本不包含 C3D 编辑写回和力台 COP / GRF 解算。":
+    "Supports Intel / MIPS float and integer C3D, with video and numbered image synchronization. C3D editing and force plate COP / GRF calculations are not included.",
   开始查看: "Start viewing",
   关节角度: "Joint angle",
   力: "Force",
@@ -290,6 +299,19 @@ export const english: Record<string, string> = {
     "This folder does not exist or is not mounted.",
 };
 export const chineseErrors: Record<string, string> = {
+  "Alignment settings must be finite.": "对齐参数必须为有限数值。",
+  "Use increasing search bounds and positive step/gap limits.":
+    "搜索上限须大于下限，步长和插值间隔须大于 0。",
+  "Invalid alignment quality thresholds.": "对齐质量阈值无效。",
+  "Video times must be finite, strictly increasing, with at least 8 samples.":
+    "视频时间须为有限数值、严格递增，并包含至少 8 个采样点。",
+  "The selected Vicon interval needs at least 8 samples.":
+    "所选 Vicon 区间至少需要 8 个采样点。",
+  "Search is too large. Narrow the frame range/search or increase the step.":
+    "搜索计算量过大，请缩小帧区间或搜索范围，或增大步长。",
+  "Signal direction must be +1 or -1.": "信号方向须为 +1 或 −1。",
+  "The alignment interval is too large. Select a shorter frame range.":
+    "对齐区间过大，请缩小帧区间。",
   "Not enough temporary disk space. Free space and retry.":
     "本机临时磁盘空间不足，请释放空间后重试。",
   "Cannot create the temporary export folder. Check disk permissions.":

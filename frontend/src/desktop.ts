@@ -1,5 +1,6 @@
 import type { Acquisition, Library } from "./types";
 import type { Preferences } from "./Preferences";
+import type { AutomaticJob, AutomaticOptions } from "./useAutomaticAlignment";
 
 export type DesktopOpen = {
   acquisition?: Acquisition;
@@ -16,6 +17,10 @@ type DesktopBridge = {
   getPreferences: () => Promise<Preferences>;
   setPreferences: (preferences: Preferences) => Promise<void>;
   onSettings: (callback: () => void) => () => void;
+  startAutoAlignment?: (
+    files: File[],
+    options: AutomaticOptions,
+  ) => Promise<AutomaticJob>;
 };
 declare global {
   interface Window {

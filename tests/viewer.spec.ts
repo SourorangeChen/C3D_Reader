@@ -33,6 +33,239 @@ test("play, pause, frame stepping and loop inside one block", async ({
   await page.getByRole("button", { name: "暂停", exact: true }).click();
 });
 
+test("Home and End pause playback at the requested range boundary", async ({
+  page,
+}) => {
+  await page.clock.install();
+  await page.getByRole("spinbutton", { name: "区间起始帧" }).fill("101");
+  await page.getByRole("spinbutton", { name: "区间结束帧" }).fill("400");
+  const frame = page.getByRole("spinbutton", { name: "当前帧", exact: true });
+  for (const [key, target] of [
+    ["Home", "101"],
+    ["End", "400"],
+  ]) {
+    await frame.fill("201");
+    await page.getByRole("button", { name: "播放", exact: true }).click();
+    await page.clock.runFor(160);
+    await expect
+      .poll(async () => Number(await frame.inputValue()))
+      .toBeGreaterThan(201);
+    await page.keyboard.press(key);
+    await page.clock.runFor(200);
+    await expect(frame).toHaveValue(target);
+    await expect(
+      page.getByRole("button", { name: "播放", exact: true }),
+    ).toBeVisible();
+  }
+});
+
+test("tooltip reports the nearest displayed sample and each series' actual time", async ({
+  page,
+}) => {
+  await page.route(/\/series\?/, (route) =>
+    route.fulfill({
+      json: {
+        start: 0,
+        stop: 8,
+        sampleRate: 2000,
+        method: "min-max envelope",
+        series: [
+          {
+            name: "X",
+            label: "test",
+            unit: "mm",
+            times: [0, 2, 7.9995],
+            values: [1, null, 100],
+          },
+          {
+            name: "Y",
+            label: "test",
+            unit: "mm",
+            times: [0.1, 1.8, 7.9],
+            values: [2, 4, 6],
+          },
+        ],
+      },
+    }),
+  );
+  await page.reload();
+  await expect(page.locator(".signal-plot path").nth(1)).toBeVisible();
+  const bounds = (await page.locator(".signal-plot svg").boundingBox())!;
+  const hoverAt = (time: number) =>
+    page.mouse.move(
+      bounds.x + 60 + ((bounds.width - 76) * time) / 8,
+      bounds.y + 60,
+    );
+  const samples = page.locator(".chart-tooltip > span");
+  await hoverAt(0.08);
+  await expect(samples.nth(1)).toContainText("X 1.00 mm");
+  await expect(samples.nth(1)).toContainText("采样 0.0000 s");
+  await expect(samples.nth(2)).toContainText("采样 0.1000 s");
+  await hoverAt(2);
+  await expect(samples.nth(1)).toContainText("X — mm");
+  await expect(samples.nth(1)).toContainText("采样 2.0000 s");
+  await expect(samples.nth(2)).toContainText("Y 4.00 mm");
+  await expect(samples.nth(2)).toContainText("采样 1.8000 s");
+  await hoverAt(7.95);
+  await expect(samples.nth(1)).toContainText("X 100.00 mm");
+  await expect(samples.nth(1)).toContainText("采样 7.9995 s");
+});
+
+for (const status of [503, 404]) {
+  test(`frame reading recovers from HTTP ${status} without reloading the page`, async ({
+    page,
+  }) => {
+    let attempts = 0;
+    await page.route(/\/frames\?start=0&/, (route) => {
+      attempts++;
+      return attempts === 1
+        ? route.fulfill({
+            status,
+            json: {
+              detail:
+                status === 404
+                  ? "Source file is unavailable. Check the disk connection."
+                  : "Temporarily unavailable",
+            },
+          })
+        : route.continue();
+    });
+    await page.reload();
+    const alert = page.getByRole("alert");
+    await expect(alert).toContainText(
+      status === 404 ? "源文件不可用" : "暂时无法读取帧数据",
+    );
+    await alert.getByRole("button", { name: "重试读取", exact: true }).click();
+    await expect(alert).toHaveCount(0);
+    await expect(page.locator(".coordinate-values")).toContainText(
+      "当前帧有效",
+    );
+    expect(attempts).toBe(2);
+    await page.getByRole("button", { name: "播放", exact: true }).click();
+    await expect
+      .poll(async () =>
+        Number(
+          await page
+            .getByRole("spinbutton", { name: "当前帧", exact: true })
+            .inputValue(),
+        ),
+      )
+      .toBeGreaterThan(5);
+  });
+}
+
+test("play retries a network failure and the English recovery action fits a narrow screen", async ({
+  page,
+}) => {
+  await page.getByRole("button", { name: "设置", exact: true }).click();
+  await page.getByLabel("界面语言").selectOption("en");
+  await page.getByRole("button", { name: "Done", exact: true }).click();
+  await page.setViewportSize({ width: 390, height: 844 });
+  let attempts = 0;
+  await page.route(/\/frames\?start=0&/, (route) => {
+    attempts++;
+    return attempts === 1 ? route.abort("failed") : route.continue();
+  });
+  await page.reload();
+  const retry = page.getByRole("button", {
+    name: "Retry reading",
+    exact: true,
+  });
+  await expect(retry).toBeVisible();
+  const bounds = (await retry.boundingBox())!;
+  expect(bounds.x).toBeGreaterThanOrEqual(0);
+  expect(bounds.x + bounds.width).toBeLessThanOrEqual(390);
+  await page.getByRole("button", { name: "Play", exact: true }).click();
+  await expect(page.getByRole("alert")).toHaveCount(0);
+  await expect
+    .poll(async () =>
+      Number(
+        await page
+          .getByRole("spinbutton", { name: "Current frame", exact: true })
+          .inputValue(),
+      ),
+    )
+    .toBeGreaterThan(5);
+  expect(attempts).toBe(2);
+});
+
+test("a changed source invalidates cached frames until its metadata is reopened", async ({
+  page,
+}) => {
+  let metadataRequests = 0;
+  let frameRequests = 0;
+  let changed = false;
+  await page.route("**/api/files/demo", async (route) => {
+    metadataRequests++;
+    const response = await route.fetch();
+    const data = await response.json();
+    await route.fulfill({
+      json: {
+        ...data,
+        firstFrame: metadataRequests > 1 ? 101 : data.firstFrame,
+        lastFrame: metadataRequests > 1 ? 900 : data.lastFrame,
+      },
+    });
+  });
+  await page.route(/\/frames\?/, (route) => {
+    frameRequests++;
+    if (
+      !changed &&
+      new URL(route.request().url()).searchParams.get("start") === "500"
+    ) {
+      changed = true;
+      return route.fulfill({
+        status: 409,
+        json: {
+          detail:
+            "The source file changed. Open it again to refresh the acquisition.",
+        },
+      });
+    }
+    return route.continue();
+  });
+  await page.reload();
+  const alert = page.getByRole("alert");
+  await expect(alert).toContainText("源文件已变化");
+  await expect(
+    page.getByRole("button", { name: "播放", exact: true }),
+  ).toBeDisabled();
+  await expect(
+    page.getByRole("button", { name: "导出 CSV", exact: true }),
+  ).toBeDisabled();
+  await expect(page.locator(".coordinate-values strong").first()).toHaveText(
+    "—",
+  );
+  const requestsBeforeSeek = frameRequests;
+  await page.getByRole("button", { name: "轨迹", exact: true }).click();
+  await page
+    .getByRole("spinbutton", { name: "当前帧", exact: true })
+    .fill("600");
+  await expect(
+    alert.getByRole("button", { name: "重新打开文件", exact: true }),
+  ).toBeVisible();
+  await page.evaluate(
+    () =>
+      new Promise<void>((resolve) =>
+        requestAnimationFrame(() => requestAnimationFrame(() => resolve())),
+      ),
+  );
+  expect(frameRequests).toBe(requestsBeforeSeek);
+  await alert
+    .getByRole("button", { name: "重新打开文件", exact: true })
+    .click();
+  await expect(
+    page.getByRole("spinbutton", { name: "当前帧", exact: true }),
+  ).toHaveValue("101");
+  await expect(
+    page.getByRole("spinbutton", { name: "当前帧", exact: true }),
+  ).toHaveAttribute("max", "900");
+  await expect(alert).toHaveCount(0);
+  await expect(page.locator(".coordinate-values")).toContainText("当前帧有效");
+  expect(metadataRequests).toBe(2);
+  expect(frameRequests).toBeGreaterThan(requestsBeforeSeek);
+});
+
 test("analog selection, original sample-rate CSV and parameters", async ({
   page,
 }) => {

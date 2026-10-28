@@ -36,6 +36,6 @@
 
 ## Themes and examples / 主题与示例
 
-Apply the resolved theme before the scene reads CSS tokens. Keep light and dark themes consistent across HTML controls, SVG plots and WebGL content. Use synthetic data for shared fixtures and default examples. When the user explicitly requests a measured-data demonstration, capture only that selected recording, hide visible identifiers, and keep raw recordings, calibration files and local paths out of published artifacts.
+Apply the resolved theme before the scene reads CSS tokens. Keep light and dark themes consistent across HTML controls, SVG plots and WebGL content. Use synthetic data for shared fixtures and default examples. Published README artwork and recordings use only the built-in synthetic acquisition. Do not use participant measurements, even with neutral filenames or visible identifiers hidden.
 
-在场景读取 CSS 变量之前应用已解析的主题，保持 HTML 控件、SVG 曲线与 WebGL 场景的深浅配色一致。共享测试素材和默认示例使用合成数据。用户明确要求实测数据演示时，仅录制指定采集，隐藏画面中的身份信息；原始采集、校准文件和本机路径不进入公开素材。
+在场景读取 CSS 变量之前应用已解析的主题，保持 HTML 控件、SVG 曲线与 WebGL 场景的深浅配色一致。共享测试素材和默认示例使用合成数据。公开 README 图片和录屏仅使用内置合成采集。即使采用中性文件名或隐藏画面身份信息，也不使用真实受试者测量数据。

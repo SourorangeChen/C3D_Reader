@@ -299,3 +299,161 @@ test("native CSV download includes every point and source COM by default", async
   expect(header).toContain("Demo:CentreOfMass:Z (mm)");
   expect(header).toContain("Demo:CentreOfMassFloor:Z (mm)");
 });
+
+test("local image synchronization and profile downloads work inside the desktop network policy", async () => {
+  await page.getByRole("button", { name: "视频同步", exact: true }).click();
+  const image = await page.evaluate(() => {
+    const canvas = document.createElement("canvas");
+    canvas.width = canvas.height = 40;
+    const context = canvas.getContext("2d")!;
+    context.fillStyle = "#72aef8";
+    context.fillRect(0, 0, 40, 40);
+    return canvas.toDataURL().split(",")[1];
+  });
+  await page.getByLabel("导入图片序列", { exact: true }).setInputFiles(
+    [0, 1, 2].map((frame) => ({
+      name: `frame_${frame}.png`,
+      mimeType: "image/png",
+      buffer: Buffer.from(image, "base64"),
+    })),
+  );
+  await page.getByLabel("源视频 FPS", { exact: true }).fill("10");
+  await page
+    .getByRole("button", { name: "将当前画面对齐到此 C3D 帧", exact: true })
+    .click();
+  await page.getByLabel("当前帧", { exact: true }).fill("11");
+  const picture = page.getByAltText("原视频帧 1", { exact: true });
+  await expect(picture).toBeVisible();
+  await expect
+    .poll(() => picture.evaluate((img: HTMLImageElement) => img.naturalWidth))
+    .toBe(40);
+  const output = path.join(folder, "sync.json");
+  await application.evaluate(({ session }, destination) => {
+    session.defaultSession.on("will-download", (_event, item) =>
+      item.setSavePath(destination),
+    );
+  }, output);
+  await page.getByRole("button", { name: "时间对齐", exact: true }).click();
+  await page.getByRole("button", { name: "保存当前对齐", exact: true }).click();
+  await expect
+    .poll(async () => {
+      try {
+        return JSON.parse(await readFile(output, "utf8")).format;
+      } catch {
+        return "";
+      }
+    })
+    .toBe("c3d-reader-sync");
+});
+
+test("bundled video playback and signal alignment use the packaged service", async () => {
+  const { version } = JSON.parse(
+    await readFile(path.resolve("package.json"), "utf8"),
+  );
+  await expect(page.locator(".version")).toHaveText(version);
+  const health = await page.request.get(
+    new URL("/api/health", page.url()).href,
+  );
+  expect((await health.json()).version).toBe(version);
+  expect(await application.evaluate(({ app }) => app.getVersion())).toBe(
+    version,
+  );
+
+  const movie = await page.evaluate(async () => {
+    const canvas = document.createElement("canvas");
+    canvas.width = 320;
+    canvas.height = 180;
+    const context = canvas.getContext("2d")!;
+    const stream = canvas.captureStream(25);
+    const recorder = new MediaRecorder(stream, {
+      mimeType: "video/webm;codecs=vp8",
+    });
+    const chunks: Blob[] = [];
+    recorder.ondataavailable = (event) => chunks.push(event.data);
+    const stopped = new Promise<void>((resolve) => {
+      recorder.onstop = () => resolve();
+    });
+    recorder.start();
+    for (let i = 0; i < 60; i++) {
+      context.fillStyle = "#111113";
+      context.fillRect(0, 0, 320, 180);
+      context.fillStyle = "#72aef8";
+      context.fillRect(10 + i * 4, 60, 30, 60);
+      await new Promise((resolve) => setTimeout(resolve, 40));
+    }
+    recorder.stop();
+    await stopped;
+    stream.getTracks().forEach((track) => track.stop());
+    return [...new Uint8Array(await new Blob(chunks).arrayBuffer())];
+  });
+  await page.getByRole("button", { name: "视频同步", exact: true }).click();
+  await page.getByLabel("导入视频", { exact: true }).setInputFiles({
+    name: "synthetic-clock.webm",
+    mimeType: "video/webm",
+    buffer: Buffer.from(movie),
+  });
+  await expect(
+    page.getByRole("button", { name: "时间对齐", exact: true }),
+  ).toBeEnabled();
+  const frame = page.getByLabel("当前帧", { exact: true });
+  const video = page.getByLabel("参考视频", { exact: true });
+  await frame.fill("51");
+  await page.getByLabel("预览视频时间（秒）").fill("0.75");
+  await page
+    .getByRole("button", { name: "将当前画面对齐到此 C3D 帧", exact: true })
+    .click();
+  await frame.fill("101");
+  await expect
+    .poll(() => video.evaluate((v: HTMLVideoElement) => v.currentTime))
+    .toBeCloseTo(1.25, 2);
+  await page.getByLabel("播放速度", { exact: true }).selectOption("0.5");
+  await page.getByRole("button", { name: "播放", exact: true }).click();
+  await expect
+    .poll(async () => Number(await frame.inputValue()))
+    .toBeGreaterThan(105);
+  const presentedTime = await video.evaluate(
+    (v: HTMLVideoElement) =>
+      new Promise<number>((resolve) => {
+        v.requestVideoFrameCallback((_now, metadata) => {
+          v.pause();
+          resolve(metadata.mediaTime);
+        });
+      }),
+  );
+  await expect
+    .poll(async () =>
+      Math.abs(
+        (Number(await frame.inputValue()) - 1) / 100 - (presentedTime - 0.25),
+      ),
+    )
+    .toBeLessThanOrEqual(0.005001);
+  await page.getByRole("button", { name: "暂停", exact: true }).click();
+
+  const seriesResponse = await page.request.get(
+    new URL("/api/files/demo/series?kind=point&ids=26&limit=10000", page.url())
+      .href,
+  );
+  expect(seriesResponse.ok()).toBe(true);
+  const series = (await seriesResponse.json()).series[2];
+  const aligned = await page.request.post(
+    new URL("/api/files/demo/alignment", page.url()).href,
+    {
+      data: {
+        times: series.times.map((time: number) => time + 0.12),
+        values: series.values,
+        kind: "point",
+        channel: 26,
+        axis: 2,
+        start: 100,
+        stop: 400,
+        low: -0.3,
+        high: 0.3,
+        step: 0.01,
+      },
+    },
+  );
+  expect(aligned.ok()).toBe(true);
+  const result = await aligned.json();
+  expect(result.status).toBe("accepted");
+  expect(result.lag).toBeCloseTo(0.12, 5);
+});
