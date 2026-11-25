@@ -9,6 +9,65 @@ test.beforeEach(async ({ page }) => {
   await expect(page.locator(".signal-plot path").nth(1)).toBeVisible();
 });
 
+test("front view looks at the patient from the anterior side and reset restores it", async ({
+  page,
+}) => {
+  await page.getByRole("button", { name: "标签", exact: true }).click();
+  await page
+    .getByRole("combobox", { name: "视角", exact: true })
+    .selectOption("front");
+  const labelX = async (name: string) => {
+    const label = page
+      .locator(".marker-label")
+      .filter({ hasText: new RegExp(`^${name}$`) });
+    await expect(label).toBeVisible();
+    return label.evaluate((el) => new DOMMatrix(el.style.transform).m41);
+  };
+  const assertFront = async () => {
+    // In the demo +Y is anterior. Its left markers must appear on screen right;
+    // anterior pelvis markers must also be closer to the perspective camera.
+    const left = await labelX("LASI"),
+      right = await labelX("RASI");
+    const backLeft = await labelX("LPSI"),
+      backRight = await labelX("RPSI");
+    expect(left).toBeGreaterThan(right);
+    expect((left - right) / (backLeft - backRight)).toBeGreaterThan(240 / 190);
+  };
+  await assertFront();
+  const canvas = await page.locator(".webgl-host canvas").boundingBox();
+  await page.mouse.move(
+    canvas!.x + canvas!.width / 2,
+    canvas!.y + canvas!.height / 2,
+  );
+  await page.mouse.down();
+  await page.mouse.move(
+    canvas!.x + canvas!.width / 2 + 150,
+    canvas!.y + canvas!.height / 2 + 50,
+  );
+  await page.mouse.up();
+  await page.getByRole("button", { name: "重置视角", exact: true }).click();
+  await assertFront();
+  // A later frame must not rotate the camera back to the old world-axis view.
+  await page.getByRole("button", { name: "下一帧", exact: true }).click();
+  await assertFront();
+  // Selecting front while frames are still loading must fit once data arrives.
+  let releaseFrames!: () => void;
+  const framesReady = new Promise<void>((resolve) => {
+    releaseFrames = resolve;
+  });
+  await page.route(/\/frames\?/, async (route) => {
+    await framesReady;
+    await route.continue();
+  });
+  await page.reload();
+  await page.getByRole("button", { name: "标签", exact: true }).click();
+  await page
+    .getByRole("combobox", { name: "视角", exact: true })
+    .selectOption("front");
+  releaseFrames();
+  await assertFront();
+});
+
 test("play, pause, frame stepping and loop inside one block", async ({
   page,
 }) => {

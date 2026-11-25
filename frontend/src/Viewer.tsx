@@ -4,6 +4,7 @@ import * as THREE from "three";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
 import { Crosshair, RotateCcw } from "lucide-react";
 import type { Acquisition } from "./types";
+import { patientView } from "./patientView";
 
 type Props = {
   meta: Acquisition;
@@ -30,6 +31,7 @@ type SceneState = {
   colors: { left: string; right: string; selected: string };
   transform: (x: number, y: number, z: number) => THREE.Vector3;
   fit: (view: string) => void;
+  hasPoints: boolean;
   render: () => void;
 };
 export function Viewer(props: Props) {
@@ -95,6 +97,7 @@ export function Viewer(props: Props) {
     );
     const distance = span * 1.15;
     const target = new THREE.Vector3(0, height, 0);
+    let lastPatientView: ReturnType<typeof patientView> = null;
     const fit = (view: string) => {
       controls.target.copy(target);
       const offsets: Record<string, number[]> = {
@@ -114,6 +117,23 @@ export function Viewer(props: Props) {
             ]),
           ),
         );
+      if (view === "front" || view === "side") {
+        const patient = patientView(
+          meta.points,
+          live.current.points,
+          transform,
+        );
+        if (patient) lastPatientView = patient;
+        if (lastPatientView) {
+          const { center, forward, span } = lastPatientView;
+          const direction = forward.clone();
+          if (view === "side") direction.cross(new THREE.Vector3(0, 1, 0));
+          controls.target.copy(center);
+          camera.position
+            .copy(center)
+            .addScaledVector(direction, span * 1.15 * 1.4);
+        }
+      }
       controls.update();
     };
     fit(live.current.view);
@@ -257,6 +277,7 @@ export function Viewer(props: Props) {
       },
       transform,
       fit,
+      hasPoints: false,
       render,
     };
     render();
@@ -374,6 +395,11 @@ export function Viewer(props: Props) {
       "position",
       new THREE.Float32BufferAttribute(positions, 3),
     );
+    // Metadata mounts the scene before the first frame has arrived.
+    if (!s.hasPoints) {
+      s.fit(live.current.view);
+      s.hasPoints = true;
+    }
     s.render();
   }, [
     resolvedTheme,
