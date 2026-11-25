@@ -11,9 +11,8 @@ import time
 import zipfile
 from pathlib import Path
 
-from fastapi import HTTPException
-
 from .acquisition import Acquisition, file_fingerprint
+from .errors import AppError
 
 
 class Cancelled(Exception):
@@ -45,20 +44,28 @@ class BatchExports:
 
         with self.lock:
             if (self.job and self.job["status"] == "running") or self.readers:
-                raise HTTPException(409, "A folder export or download is already in progress.")
+                raise AppError(
+                    "export_in_progress",
+                    "A folder export or download is already in progress.",
+                    status=409,
+                )
             if not sources:
-                raise HTTPException(400, "This folder contains no C3D files.")
+                raise AppError("folder_has_no_c3d", "This folder contains no C3D files.")
             # Allocate before deleting a previous completed result. A full
             # temporary disk must not leave a ready task with no ZIP behind.
             try:
                 folder = Path(tempfile.mkdtemp(prefix="c3d-export-"))
             except OSError as exc:
                 if exc.errno in (errno.ENOSPC, errno.EDQUOT):
-                    raise HTTPException(
-                        507, "Not enough temporary disk space. Free space and retry."
+                    raise AppError(
+                        "disk_full",
+                        "Not enough temporary disk space. Free space and retry.",
+                        status=507,
                     ) from None
-                raise HTTPException(
-                    507, "Cannot create the temporary export folder. Check disk permissions."
+                raise AppError(
+                    "temp_folder_failed",
+                    "Cannot create the temporary export folder. Check disk permissions.",
+                    status=507,
                 ) from None
             self.close()
             self.folder = folder
@@ -236,7 +243,9 @@ class BatchExports:
 
     def _get(self, key):
         if not self.job or self.job["id"] != key:
-            raise HTTPException(404, "Export not found. Start a new export.")
+            raise AppError(
+                "export_not_found", "Export not found. Start a new export.", status=404
+            )
         if (
             self.job["status"] == "ready"
             and not self.readers
@@ -266,8 +275,10 @@ class BatchExports:
         with self.lock:
             job = self._get(key)
             if job["status"] != "ready":
-                raise HTTPException(
-                    409, "Export is not ready. Start a new export if it has expired."
+                raise AppError(
+                    "export_not_ready",
+                    "Export is not ready. Start a new export if it has expired.",
+                    status=409,
                 )
             self.readers += 1
             job["updated"] = time.monotonic()

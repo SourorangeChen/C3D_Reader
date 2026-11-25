@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { ApiError } from "./types";
+import { ApiError, responseError } from "./types";
 import type { Acquisition } from "./types";
 
 const BLOCK = 500;
@@ -33,15 +33,8 @@ export function useFrames(meta: Acquisition | null, frame: number) {
         `/api/files/${meta.id}/frames?start=${start}&count=${BLOCK}`,
         { signal: controller.signal },
       );
-      if (!response.ok) {
-        const body = await response.json().catch(() => null);
-        throw new ApiError(
-          response.status >= 500 || typeof body?.detail !== "string"
-            ? "暂时无法读取帧数据，请重试。"
-            : body.detail,
-          response.status,
-        );
-      }
+      if (!response.ok)
+        throw await responseError(response, "暂时无法读取帧数据，请重试。");
       const bytes = await response.arrayBuffer();
       if (controller.signal.aborted || identity.current !== meta) return;
       cache.current.set(start, new Float32Array(bytes));

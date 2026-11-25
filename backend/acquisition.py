@@ -14,6 +14,8 @@ from pathlib import Path
 import c3d
 import numpy as np
 
+from .errors import AppError
+
 
 def point_role(label):
     """Recognize named, source-provided whole-body COM channels, not estimates.
@@ -66,12 +68,17 @@ class Acquisition:
         self.path = Path(path)
         self.fingerprint = file_fingerprint(self.path)
         if self.fingerprint[0] < 512:
-            raise ValueError("Truncated C3D header: a complete 512-byte header is required.")
+            raise AppError(
+                "c3d_truncated_header",
+                "Truncated C3D header: a complete 512-byte header is required.",
+            )
         with self.path.open("rb") as stream:
             self.reader = MetadataReader(stream)
         r = self.reader
         if r._dtypes.is_dec:
-            raise ValueError("DEC/VAX C3D is not supported. Re-export as Intel/IEEE C3D.")
+            raise AppError(
+                "c3d_dec_unsupported", "DEC/VAX C3D is not supported. Re-export as Intel/IEEE C3D."
+            )
         self.npoints, self.nanalog = r.point_used, r.analog_used
         self.samples = int(r.analog_per_frame)
         self.rate, self.analog_rate = float(r.point_rate), float(r.analog_rate)
@@ -79,11 +86,13 @@ class Acquisition:
         self.count = self.last - self.first + 1
         self.scale = float(r.point_scale)
         if self.count < 1 or self.rate <= 0 or not math.isfinite(self.rate):
-            raise ValueError("Invalid C3D frame range or sampling rate.")
+            raise AppError("c3d_invalid_timing", "Invalid C3D frame range or sampling rate.")
         if self.nanalog and (
             self.samples < 1 or not np.isclose(self.analog_rate, self.rate * self.samples)
         ):
-            raise ValueError("Analog rate must be an integer multiple of point rate.")
+            raise AppError(
+                "c3d_analog_rate", "Analog rate must be an integer multiple of point rate."
+            )
         is_float = self.scale < 0
         pdtype = r._dtypes.float32 if is_float else r._dtypes.int16
         adtype = (
@@ -98,10 +107,13 @@ class Acquisition:
             ]
         )
         if dtype.itemsize == 0:
-            raise ValueError("The acquisition has no point or analog data.")
+            raise AppError("c3d_no_data", "The acquisition has no point or analog data.")
         offset = (r._header.data_block - 1) * 512
         if offset < 512 or offset + dtype.itemsize * self.count > self.path.stat().st_size:
-            raise ValueError("Truncated C3D data: file is shorter than its declared frame range.")
+            raise AppError(
+                "c3d_truncated_data",
+                "Truncated C3D data: file is shorter than its declared frame range.",
+            )
         self.data = np.memmap(self.path, dtype=dtype, mode="r", offset=offset, shape=(self.count,))
         self.point_labels = self.labels("POINT:LABELS", self.npoints, "Point")
         self.point_roles = [point_role(label) for label in self.point_labels]

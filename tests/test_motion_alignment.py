@@ -157,7 +157,7 @@ def test_job_rejects_changed_sources_and_reports_cancelled(tmp_path, monkeypatch
     movie.write_bytes(b"changed")
     job.run()
     assert job.snapshot()["status"] == "failed"
-    assert "源文件发生变化" in job.snapshot()["error"]
+    assert job.snapshot()["errorCode"] == "auto_source_changed"
     cancelled = AutomaticAlignment(acq, [str(movie)], 0, acq.count)
     cancelled.cancel()
     cancelled.run()

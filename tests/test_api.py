@@ -103,7 +103,25 @@ def test_invalid_c3d_is_an_actionable_error(client, tmp_path):
     listing = client.post("/api/library", json={"path": str(tmp_path)}).json()
     response = client.get(f"/api/files/{listing['files'][0]['id']}")
     assert response.status_code == 422
-    assert "Truncated C3D header" in response.json()["detail"]
+    body = response.json()
+    assert "Truncated C3D header" in body["detail"]
+    assert body["code"] == "c3d_truncated_header"
+
+
+def test_errors_carry_stable_codes_and_parameters(client):
+    missing = client.get("/api/files/not-a-file").json()
+    assert missing["code"] == "file_not_registered"
+    assert missing["params"] == {}
+    channels = client.get("/api/files/demo/series", params={"kind": "point", "ids": ""}).json()
+    assert channels["code"] in {"channel_ids_invalid", "channel_count_invalid"}
+    too_many = client.get(
+        "/api/files/demo/series",
+        params={"kind": "point", "ids": ",".join(map(str, range(10)))},
+    ).json()
+    assert too_many["code"] == "channel_count_invalid"
+    assert too_many["params"] == {"maximum": 8}
+    expired = client.get("/api/auto-alignment/unknown").json()
+    assert expired["code"] == "auto_job_missing"
 
 
 def test_desktop_open_requires_private_token(client, tmp_path, monkeypatch):

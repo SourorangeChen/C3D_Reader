@@ -181,12 +181,15 @@ for (const status of [503, 404]) {
       return attempts === 1
         ? route.fulfill({
             status,
-            json: {
-              detail:
-                status === 404
-                  ? "Source file is unavailable. Check the disk connection."
-                  : "Temporarily unavailable",
-            },
+            json:
+              status === 404
+                ? {
+                    detail:
+                      "Source file is unavailable. Check the disk connection.",
+                    code: "source_unavailable",
+                    params: {},
+                  }
+                : { detail: "Temporarily unavailable" },
           })
         : route.continue();
     });
@@ -279,6 +282,8 @@ test("a changed source invalidates cached frames until its metadata is reopened"
         json: {
           detail:
             "The source file changed. Open it again to refresh the acquisition.",
+          code: "source_changed",
+          params: {},
         },
       });
     }
@@ -421,6 +426,39 @@ test("invalid folder shows a recoverable error", async ({ page }) => {
   await expect(
     page.getByRole("heading", { name: "Synthetic walking" }),
   ).toBeVisible();
+});
+
+test("backend errors follow the interface language, including after switching", async ({
+  page,
+}) => {
+  await page.getByRole("button", { name: "设置", exact: true }).click();
+  await page.getByLabel("界面语言").selectOption("en");
+  await page.getByRole("button", { name: "Done", exact: true }).click();
+  await page.getByRole("button", { name: "Open folder", exact: true }).click();
+  await page
+    .getByRole("textbox", { name: "Folder path" })
+    .fill("/this-folder-does-not-exist-c3d-reader");
+  await page
+    .getByRole("dialog")
+    .getByRole("button", { name: "Open folder", exact: true })
+    .click();
+  const alert = page.getByRole("dialog").getByRole("alert");
+  await expect(alert).toHaveText(
+    "This folder does not exist or is not mounted.",
+  );
+  await page.getByRole("button", { name: "Cancel", exact: true }).click();
+  await page.getByRole("button", { name: "Settings", exact: true }).click();
+  await page.getByLabel("Interface language").selectOption("zh-CN");
+  await page.getByRole("button", { name: "完成", exact: true }).click();
+  await page.getByRole("button", { name: "打开文件夹", exact: true }).click();
+  await page
+    .getByRole("textbox", { name: "文件夹路径" })
+    .fill("/this-folder-does-not-exist-c3d-reader");
+  await page
+    .getByRole("dialog")
+    .getByRole("button", { name: "打开文件夹", exact: true })
+    .click();
+  await expect(alert).toHaveText("文件夹不存在或未挂载，请重新选择。");
 });
 
 for (const [width, height] of [

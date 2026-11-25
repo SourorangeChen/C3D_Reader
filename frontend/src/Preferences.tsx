@@ -7,7 +7,8 @@ import {
   useState,
 } from "react";
 import { desktop } from "./desktop";
-import { chineseErrors, english } from "./translations";
+import { english } from "./translations";
+import { chineseError } from "./errors";
 
 export type Preferences = {
   theme: "dark" | "light" | "system";
@@ -50,7 +51,7 @@ function translate(
   values: (string | number)[] = [],
 ) {
   const copy =
-    language === "en" ? english[text] || text : chineseErrors[text] || text;
+    language === "en" ? english[text] || text : chineseError(text) || text;
   return copy.replace(/\{(\d+)\}/g, (match, n) =>
     values[Number(n)] == null ? match : String(values[Number(n)]),
   );

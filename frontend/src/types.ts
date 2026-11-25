@@ -1,3 +1,5 @@
+import { localizedError } from "./errors";
+
 export type Point = {
   id: number;
   label: string;
@@ -74,18 +76,29 @@ export class ApiError extends Error {
   constructor(
     message: string,
     public status: number,
+    public code?: string,
   ) {
     super(message);
   }
 }
+// Reads the backend's { detail, code, params } body. A known code wins;
+// `fallback` replaces an uncoded server-side or missing detail.
+export async function responseError(response: Response, fallback?: string) {
+  const body = await response.json().catch(() => null);
+  const detail = typeof body?.detail === "string" ? body.detail : "";
+  const uncoded =
+    fallback && (response.status >= 500 || !detail) ? fallback : detail;
+  const message =
+    localizedError(body?.code, body?.params, uncoded) ||
+    localizedError(
+      "request_failed",
+      { status: response.status },
+      `Request failed (${response.status}).`,
+    );
+  return new ApiError(message, response.status, body?.code);
+}
 export async function api<T>(url: string, options?: RequestInit): Promise<T> {
   const response = await fetch(url, options);
-  if (!response.ok) {
-    const error = await response.json().catch(() => null);
-    throw new ApiError(
-      error?.detail || `请求失败 (${response.status})`,
-      response.status,
-    );
-  }
+  if (!response.ok) throw await responseError(response);
   return response.json();
 }

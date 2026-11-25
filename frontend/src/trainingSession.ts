@@ -7,6 +7,7 @@ import {
   type MediaSession,
   type MediaSetup,
 } from "./mediaSession";
+import { errorMessage, localizedError } from "./errors";
 
 export type TrialIdentity = Pick<
   Acquisition,
@@ -23,6 +24,8 @@ export type TrainingTrial = {
   status: "accepted" | "shared" | "rejected";
   reason: string;
   detail?: string;
+  detailCode?: string | null;
+  detailParams?: Record<string, unknown>;
   baseline?: number;
   lag?: number | null;
   offset?: number | null;
@@ -173,7 +176,11 @@ export async function startTraining(
             job,
             error:
               job.status === "failed"
-                ? job.error || "参考 trial 对齐失败，请更换 trial 后重试。"
+                ? localizedError(
+                    job.errorCode,
+                    job.errorParams,
+                    job.error || "参考 trial 对齐失败，请更换 trial 后重试。",
+                  )
                 : "",
           });
           if (job.status === "running")
@@ -182,14 +189,14 @@ export async function startTraining(
       } catch (error) {
         if (version === session.trainingVersion) {
           cancelTraining(session);
-          update(session, { error: (error as Error).message });
+          update(session, { error: errorMessage(error) });
         }
       }
     };
     await poll();
   } catch (error) {
     if (version === session.trainingVersion)
-      update(session, { job: null, error: (error as Error).message });
+      update(session, { job: null, error: errorMessage(error) });
   }
 }
 

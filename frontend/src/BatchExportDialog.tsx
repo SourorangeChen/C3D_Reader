@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Download, X } from "lucide-react";
 import { api, ApiError } from "./types";
 import { usePreferences } from "./Preferences";
+import { errorMessage } from "./errors";
 
 type Job = {
   id: string;
@@ -54,7 +55,7 @@ export function BatchExportDialog({
         }
       })
       .catch((e) => {
-        if (!disposed) setError(e.message);
+        if (!disposed) setError(errorMessage(e));
       })
       .finally(() => {
         if (!disposed) setPending(false);
@@ -133,11 +134,11 @@ export function BatchExportDialog({
           ) {
             setJob(current);
             setError("已连接到现有导出任务。");
-          } else setError((e as Error).message);
+          } else setError(errorMessage(e));
         } catch (reconnectError) {
-          setError((reconnectError as Error).message);
+          setError(errorMessage(reconnectError));
         }
-      } else setError((e as Error).message);
+      } else setError(errorMessage(e));
     } finally {
       setPending(false);
     }
@@ -153,7 +154,7 @@ export function BatchExportDialog({
         }),
       );
     } catch (e) {
-      setError((e as Error).message);
+      setError(errorMessage(e));
       setCancelling(false);
     }
   };
@@ -176,7 +177,7 @@ export function BatchExportDialog({
         link.remove();
       }
     } catch (e) {
-      setError((e as Error).message);
+      setError(errorMessage(e));
     } finally {
       setPending(false);
     }

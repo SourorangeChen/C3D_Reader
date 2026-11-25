@@ -15,6 +15,7 @@ import type {
   SyncMapping,
   MediaIdentity,
 } from "./synchronization";
+import { errorMessage } from "./errors";
 
 type Props = {
   meta: Acquisition;
@@ -94,7 +95,7 @@ export function SyncSettings(props: Props) {
       props.onApply(value);
       props.onClose();
     } catch (e) {
-      setError((e as Error).message);
+      setError(errorMessage(e));
     }
   };
   const loadAlignment = async (file?: File) => {
@@ -129,7 +130,7 @@ export function SyncSettings(props: Props) {
       }
     } catch (e) {
       if (version !== reads.current.alignment) return;
-      setError((e as Error).message);
+      setError(errorMessage(e));
       setChoices([]);
     }
   };
@@ -148,7 +149,7 @@ export function SyncSettings(props: Props) {
       setSignalName(file.name);
     } catch (e) {
       if (version !== reads.current.signal) return;
-      setError((e as Error).message);
+      setError(errorMessage(e));
     }
   };
   const calculate = async () => {
@@ -186,7 +187,7 @@ export function SyncSettings(props: Props) {
       );
       if (!controller.signal.aborted) setEstimate(result);
     } catch (e) {
-      if (!controller.signal.aborted) setError((e as Error).message);
+      if (!controller.signal.aborted) setError(errorMessage(e));
     } finally {
       if (!controller.signal.aborted) setBusy(false);
     }
@@ -286,7 +287,7 @@ export function SyncSettings(props: Props) {
                 source: "manual",
               });
             } catch (e) {
-              setError((e as Error).message);
+              setError(errorMessage(e));
             }
           }}
         >
@@ -403,7 +404,7 @@ export function SyncSettings(props: Props) {
               );
               setError("");
             } catch (e) {
-              setError((e as Error).message);
+              setError(errorMessage(e));
             }
           }}
         >

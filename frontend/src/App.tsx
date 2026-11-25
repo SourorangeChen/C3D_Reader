@@ -63,6 +63,7 @@ import type {
   Selection,
   SeriesData,
 } from "./types";
+import { errorMessage } from "./errors";
 
 const countFormat = new Intl.NumberFormat("en");
 const MediaPanel = lazy(() =>
@@ -253,7 +254,7 @@ export default function App() {
         if (version !== loadVersion.current) return;
         applyAcquisition(data);
       } catch (e) {
-        if (version === loadVersion.current) setError((e as Error).message);
+        if (version === loadVersion.current) setError(errorMessage(e));
       } finally {
         if (version === loadVersion.current) setLoading("");
       }
@@ -274,7 +275,7 @@ export default function App() {
         void openFile(initial.id);
         setDesktopReady(true);
       })
-      .catch((e) => setError(e.message));
+      .catch((e) => setError(errorMessage(e)));
     return () => {
       disposed = true;
     };
@@ -299,15 +300,16 @@ export default function App() {
       } else if (payload.library?.files.length)
         void openFile(payload.library.files[0].id);
     });
-    void desktop.ready().catch((e) => setError(e.message));
+    void desktop.ready().catch((e) => setError(errorMessage(e)));
     return unsubscribe;
   }, [desktopReady, applyAcquisition, openFile]);
   const openNativeFile = () => {
-    void desktop?.openFile().catch((e) => setError(e.message));
+    void desktop?.openFile().catch((e) => setError(errorMessage(e)));
   };
   const openFolder = () => {
     setError("");
-    if (desktop) void desktop.openFolder().catch((e) => setError(e.message));
+    if (desktop)
+      void desktop.openFolder().catch((e) => setError(errorMessage(e)));
     else setModal("folder");
   };
   const dropFiles = async (event: React.DragEvent) => {
@@ -336,7 +338,7 @@ export default function App() {
     try {
       await desktop.openDroppedFile(files[0]);
     } catch (e) {
-      setError((e as Error).message);
+      setError(errorMessage(e));
     } finally {
       setLoading("");
     }
@@ -354,7 +356,7 @@ export default function App() {
         if (!controller.signal.aborted) setSeries(data);
       })
       .catch((e) => {
-        if (e.name !== "AbortError") setSeriesError(e.message);
+        if (e.name !== "AbortError") setSeriesError(errorMessage(e));
       });
     return () => controller.abort();
   }, [meta, selection, roi, sourceChanged]);
@@ -368,7 +370,7 @@ export default function App() {
         if (!controller.signal.aborted) setParams(data);
       })
       .catch((e) => {
-        if (e.name !== "AbortError") setError(e.message);
+        if (e.name !== "AbortError") setError(errorMessage(e));
       });
     return () => controller.abort();
   }, [inspector, meta, params, sourceChanged]);
@@ -545,7 +547,7 @@ export default function App() {
       setModal(null);
       if (data.files.length) void openFile(data.files[0].id);
     } catch (e) {
-      setError((e as Error).message);
+      setError(errorMessage(e));
     } finally {
       setLoading("");
     }
@@ -728,7 +730,7 @@ export default function App() {
               onClick={() => {
                 void api<Library>("/api/library")
                   .then(setLibrary)
-                  .catch((e) => setError(e.message));
+                  .catch((e) => setError(errorMessage(e)));
               }}
             >
               <RefreshCw size={13} />

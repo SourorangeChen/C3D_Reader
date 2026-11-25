@@ -298,37 +298,3 @@ export const english: Record<string, string> = {
   "This folder does not exist or is not mounted.":
     "This folder does not exist or is not mounted.",
 };
-export const chineseErrors: Record<string, string> = {
-  "Alignment settings must be finite.": "对齐参数必须为有限数值。",
-  "Use increasing search bounds and positive step/gap limits.":
-    "搜索上限须大于下限，步长和插值间隔须大于 0。",
-  "Invalid alignment quality thresholds.": "对齐质量阈值无效。",
-  "Video times must be finite, strictly increasing, with at least 8 samples.":
-    "视频时间须为有限数值、严格递增，并包含至少 8 个采样点。",
-  "The selected Vicon interval needs at least 8 samples.":
-    "所选 Vicon 区间至少需要 8 个采样点。",
-  "Search is too large. Narrow the frame range/search or increase the step.":
-    "搜索计算量过大，请缩小帧区间或搜索范围，或增大步长。",
-  "Signal direction must be +1 or -1.": "信号方向须为 +1 或 −1。",
-  "The alignment interval is too large. Select a shorter frame range.":
-    "对齐区间过大，请缩小帧区间。",
-  "Not enough temporary disk space. Free space and retry.":
-    "本机临时磁盘空间不足，请释放空间后重试。",
-  "Cannot create the temporary export folder. Check disk permissions.":
-    "无法创建临时导出目录，请检查磁盘权限。",
-  "No matching source channels are available for this export.":
-    "文件中没有可用于此导出的源通道。",
-  "COM export requires point data.": "COM 导出需要点位数据。",
-  "This folder does not exist or is not mounted.":
-    "文件夹不存在或未挂载，请重新选择。",
-  "This folder contains no C3D files.": "此文件夹中没有 C3D 文件。",
-  "A folder export or download is already in progress.":
-    "已有批量导出或下载正在进行，请稍后重试。",
-  "Export not found. Start a new export.": "找不到导出任务，请重新开始。",
-  "Source file is unavailable. Check the disk connection.":
-    "源文件不可用，请检查磁盘连接。",
-  "The source file changed. Open it again to refresh the acquisition.":
-    "源文件已变化，请重新打开。",
-  "File is no longer registered. Refresh the library.":
-    "文件已失效，请刷新文件夹。",
-};

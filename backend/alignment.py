@@ -8,6 +8,8 @@ import math
 
 import numpy as np
 
+from .errors import AppError
+
 
 def interpolate(query, times, values, max_gap):
     """Interpolate only between adjacent valid samples, never over missing data."""
@@ -55,11 +57,14 @@ def estimate_lag(
         min_peak_margin,
     ]
     if not all(math.isfinite(v) for v in settings):
-        raise ValueError("Alignment settings must be finite.")
+        raise AppError("alignment_settings_invalid", "Alignment settings must be finite.")
     if not low < high or step <= 0 or max_gap <= 0 or peak_separation <= 0:
-        raise ValueError("Use increasing search bounds and positive step/gap limits.")
+        raise AppError(
+            "alignment_bounds_invalid",
+            "Use increasing search bounds and positive step/gap limits.",
+        )
     if not 0 < min_coverage <= 1 or not 0 <= min_correlation <= 1 or min_peak_margin < 0:
-        raise ValueError("Invalid alignment quality thresholds.")
+        raise AppError("alignment_thresholds_invalid", "Invalid alignment quality thresholds.")
     times = np.asarray(video_times, dtype=float)
     values = np.asarray(video_values, dtype=float)
     target = np.asarray(reference, dtype=float)
@@ -71,17 +76,26 @@ def estimate_lag(
         or not np.isfinite(times).all()
         or not np.all(np.diff(times) > 0)
     ):
-        raise ValueError(
-            "Video times must be finite, strictly increasing, with at least 8 samples."
+        raise AppError(
+            "video_times_invalid",
+            "Video times must be finite, strictly increasing, with at least 8 samples.",
         )
     if target.shape != queries.shape or len(target) < 8 or not np.isfinite(queries).all():
-        raise ValueError("The selected Vicon interval needs at least 8 samples.")
+        raise AppError(
+            "vicon_interval_too_short", "The selected Vicon interval needs at least 8 samples."
+        )
     requested_steps = (high - low) / step
     if not math.isfinite(requested_steps) or requested_steps > 10000:
-        raise ValueError("Search is too large. Narrow the frame range/search or increase the step.")
+        raise AppError(
+            "alignment_search_too_large",
+            "Search is too large. Narrow the frame range/search or increase the step.",
+        )
     steps = math.ceil(requested_steps - 1e-9)
     if not 2 <= steps <= 10000 or (steps + 1) * len(target) > 20_000_000:
-        raise ValueError("Search is too large. Narrow the frame range/search or increase the step.")
+        raise AppError(
+            "alignment_search_too_large",
+            "Search is too large. Narrow the frame range/search or increase the step.",
+        )
     offsets = np.linspace(low, high, steps + 1)
     scores, coverages = [], []
     for lag in offsets:

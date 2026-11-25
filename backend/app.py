@@ -10,7 +10,7 @@ from typing import Optional
 from urllib.parse import urlparse
 
 import numpy as np
-from fastapi import FastAPI, Header, HTTPException, Query, Request
+from fastapi import FastAPI, Header, Query, Request
 from fastapi.responses import FileResponse, JSONResponse, Response, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
@@ -21,6 +21,7 @@ from .alignment import estimate_lag
 from .automatic_sync import AutomaticAlignments
 from .batch_export import BatchExports
 from .demo import DEMO_REVISION, create_demo
+from .errors import AppError
 
 ROOT = Path(__file__).resolve().parents[1]
 CONFIG_DIR = Path(os.environ.get("C3D_READER_CONFIG_DIR", Path.home() / ".config" / "c3d-reader"))
@@ -54,6 +55,11 @@ files = {"demo": demo_path}
 batch_exports = BatchExports()
 
 
+@app.exception_handler(AppError)
+async def app_error(_request: Request, error: AppError):
+    return JSONResponse(error.body(), status_code=error.status)
+
+
 @app.middleware("http")
 async def local_origin(request: Request, call_next):
     origin = request.headers.get("origin")
@@ -82,20 +88,32 @@ def get_acq(key):
                 fingerprint = file_fingerprint(acquisition.path)
             except OSError as exc:
                 cache.pop(key, None)
-                raise HTTPException(
-                    404, "Source file is unavailable. Check the disk connection."
+                raise AppError(
+                    "source_unavailable",
+                    "Source file is unavailable. Check the disk connection.",
+                    status=404,
                 ) from exc
             if fingerprint != acquisition.fingerprint:
                 cache.pop(key, None)
-                raise HTTPException(
-                    409, "The source file changed. Open it again to refresh the acquisition."
+                raise AppError(
+                    "source_changed",
+                    "The source file changed. Open it again to refresh the acquisition.",
+                    status=409,
                 )
             cache.move_to_end(key)
             return cache[key]
         if key not in files:
-            raise HTTPException(404, "File is no longer registered. Refresh the library.")
+            raise AppError(
+                "file_not_registered",
+                "File is no longer registered. Refresh the library.",
+                status=404,
+            )
         try:
             acquisition = Acquisition(files[key])
+        except AppError as exc:
+            raise AppError(
+                exc.code, f"Cannot read C3D: {exc.message}", status=422, **exc.params
+            ) from exc
         except (
             OSError,
             ValueError,
@@ -105,7 +123,9 @@ def get_acq(key):
             IndexError,
             struct.error,
         ) as exc:
-            raise HTTPException(422, f"Cannot read C3D: {exc}") from exc
+            raise AppError(
+                "c3d_unreadable", f"Cannot read C3D: {exc}", status=422, detail=str(exc)
+            ) from exc
         cache[key] = acquisition
         while len(cache) > 3:
             cache.popitem(last=False)
@@ -116,8 +136,8 @@ def frame_range(acq, start, stop):
     if stop is None:
         stop = acq.count
     if start < 0 or stop > acq.count or stop <= start:
-        raise HTTPException(
-            400,
+        raise AppError(
+            "frame_range_invalid",
             "Frame range must satisfy 0 ≤ start < stop ≤ frameCount (stop is exclusive).",
         )
     return start, stop
@@ -127,10 +147,16 @@ def indices_for(acq, kind, ids, maximum=32):
     try:
         indices = list(dict.fromkeys(int(v) for v in ids.split(",")))
     except ValueError as exc:
-        raise HTTPException(400, "Channel IDs must be comma-separated integers.") from exc
+        raise AppError(
+            "channel_ids_invalid", "Channel IDs must be comma-separated integers."
+        ) from exc
     total = acq.npoints if kind == "point" else acq.nanalog
     if not indices or len(indices) > maximum or any(i < 0 or i >= total for i in indices):
-        raise HTTPException(400, f"Select between 1 and {maximum} valid channels.")
+        raise AppError(
+            "channel_count_invalid",
+            f"Select between 1 and {maximum} valid channels.",
+            maximum=maximum,
+        )
     return indices
 
 
@@ -141,7 +167,11 @@ class Folder(BaseModel):
 def require_desktop(token):
     expected = os.environ.get("C3D_READER_DESKTOP_TOKEN", "")
     if not expected or not secrets.compare_digest(token or "", expected):
-        raise HTTPException(403, "This operation is available only to the desktop application.")
+        raise AppError(
+            "desktop_only",
+            "This operation is available only to the desktop application.",
+            status=403,
+        )
 
 
 @app.post("/api/desktop/open")
@@ -149,7 +179,7 @@ def desktop_open(file: Folder, x_desktop_token: str = Header(default="")):
     require_desktop(x_desktop_token)
     path = Path(file.path).expanduser().resolve()
     if path.suffix.lower() != ".c3d" or not path.is_file() or path.name.startswith("._"):
-        raise HTTPException(400, "请选择有效的 .c3d 文件。")
+        raise AppError("c3d_file_required", "Select a valid .c3d file.")
     with cache_lock:
         key = next((k for k, value in files.items() if value == path), None)
         key = key or secrets.token_hex(8)
@@ -185,22 +215,22 @@ def start_automatic_alignment(
         if body.acquisitionIds is not None:
             ids = list(dict.fromkeys(body.acquisitionIds))
             if body.acquisitionId not in ids:
-                raise ValueError("当前试次不在整组匹配列表中，请刷新文件夹。")
+                raise AppError(
+                    "trial_not_in_group",
+                    "The current trial is not in the matching list. Refresh the folder.",
+                )
             with cache_lock:
                 if any(key not in files for key in ids):
-                    raise ValueError("试次列表已变化，请刷新文件夹后重新导入。")
+                    raise AppError(
+                        "trial_list_changed",
+                        "The trial list changed. Refresh the folder and import again.",
+                    )
                 targets = [(key, files[key]) for key in ids]
-
-            def load_trial(key):
-                try:
-                    return get_acq(key)
-                except HTTPException as error:
-                    raise ValueError(str(error.detail)) from error
 
             return automatic_alignments.start_training(
                 acquisition,
                 targets,
-                load_trial,
+                get_acq,
                 body.paths,
                 body.times,
                 body.origin,
@@ -212,12 +242,17 @@ def start_automatic_alignment(
         return automatic_alignments.start(
             acquisition, body.paths, start, stop, body.times, body.origin, body.subjectX
         )
-    except (ValueError, OSError) as error:
-        raise HTTPException(
-            400,
-            str(error)
-            if isinstance(error, ValueError)
-            else "无法读取自动对齐素材，请重新导入本机文件。",
+    except AppError:
+        raise
+    except OSError as error:
+        raise AppError(
+            "auto_media_unreadable",
+            "Cannot read the alignment media. Import the local files again.",
+        ) from error
+    except ValueError as error:
+        raise AppError(
+            "auto_alignment_failed",
+            "Automatic alignment failed. Check the source files or import again.",
         ) from error
 
 
@@ -226,7 +261,7 @@ def automatic_alignment_status(key: str):
     try:
         return automatic_alignments.get(key).snapshot()
     except KeyError as error:
-        raise HTTPException(404, "自动对齐任务已失效，请重试。") from error
+        raise alignment_job_missing() from error
 
 
 @app.delete("/api/auto-alignment/{key}")
@@ -236,7 +271,13 @@ def cancel_automatic_alignment(key: str):
         job.cancel()
         return job.snapshot()
     except KeyError as error:
-        raise HTTPException(404, "自动对齐任务已失效，请重试。") from error
+        raise alignment_job_missing() from error
+
+
+def alignment_job_missing():
+    return AppError(
+        "auto_job_missing", "The automatic alignment job expired. Try again.", status=404
+    )
 
 
 @app.get("/api/library")
@@ -262,7 +303,9 @@ def list_library():
                     files[key] = path
                     listing.append(dict(id=key, name=path.name, size=path.stat().st_size))
         except OSError as exc:
-            raise HTTPException(400, f"Cannot list folder: {exc}") from exc
+            raise AppError(
+                "folder_list_failed", f"Cannot list folder: {exc}", detail=str(exc)
+            ) from exc
     return dict(
         folder=str(root) if root else "",
         available=bool(root and root.is_dir()),
@@ -275,12 +318,14 @@ def list_library():
 def set_library(folder: Folder):
     root = Path(folder.path).expanduser().resolve()
     if not root.is_dir():
-        raise HTTPException(400, "This folder does not exist or is not mounted.")
+        raise AppError("folder_missing", "This folder does not exist or is not mounted.")
     # Validate access before persisting the selected folder.
     try:
         next(root.iterdir(), None)
     except OSError as exc:
-        raise HTTPException(400, f"Cannot access folder: {exc}") from exc
+        raise AppError(
+            "folder_access_failed", f"Cannot access folder: {exc}", detail=str(exc)
+        ) from exc
     library["root"] = str(root)
     (CONFIG_DIR / "settings.json").write_text(json.dumps({"folder": str(root)}))
     return list_library()
@@ -457,10 +502,11 @@ def align_signals(key: str, body: AlignmentRequest):
     start, stop = frame_range(acq, body.start, body.stop)
     indices_for(acq, body.kind, str(body.channel))
     if body.direction not in (-1, 1):
-        raise HTTPException(400, "Signal direction must be +1 or -1.")
+        raise AppError("signal_direction_invalid", "Signal direction must be +1 or -1.")
     if (stop - start) * (acq.samples if body.kind == "analog" else 1) > 200000:
-        raise HTTPException(
-            400, "The alignment interval is too large. Select a shorter frame range."
+        raise AppError(
+            "alignment_interval_too_large",
+            "The alignment interval is too large. Select a shorter frame range.",
         )
     if body.kind == "point":
         raw = acq.data["points"][start:stop, body.channel]
@@ -484,8 +530,10 @@ def align_signals(key: str, body: AlignmentRequest):
             step=body.step,
             max_gap=body.maxGap,
         )
+    except AppError:
+        raise
     except ValueError as exc:
-        raise HTTPException(400, str(exc)) from exc
+        raise AppError("alignment_failed", f"Signal alignment failed: {exc}", detail=str(exc)) from exc
     return dict(
         **result,
         reference=dict(
@@ -516,14 +564,16 @@ def export(
         filename = "c3d-all-points.csv" if kind == "point" else "c3d-all-analog.csv"
     elif scope == "com":
         if kind != "point":
-            raise HTTPException(400, "COM export requires point data.")
+            raise AppError("com_requires_points", "COM export requires point data.")
         indices = [i for i, role in enumerate(acq.point_roles) if role]
         filename = "c3d-com.csv"
     else:
         indices = indices_for(acq, kind, ids)
         filename = f"c3d-{kind}-export.csv"
     if not indices:
-        raise HTTPException(400, "No matching source channels are available for this export.")
+        raise AppError(
+            "export_no_channels", "No matching source channels are available for this export."
+        )
     return StreamingResponse(
         acq.csv_rows(kind, indices, start, stop),
         media_type="text/csv",

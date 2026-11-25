@@ -32,6 +32,10 @@ Analog series retain sample-level times. A min/max envelope also keeps a missing
 
 The per-file export API accepts `scope=selected` (the backwards-compatible default), `scope=all` for every point or analog channel, and `scope=com` for recognized source COM and floor projections. The UI explicitly requests all points / all frames by default. COM roles are additive metadata derived from exact normalized label suffixes (`CentreOfMass`, `CenterOfMass`, `COM`, and `Floor` variants), preserving subject prefixes and raw sample values. A missing COM channel is reported; marker averaging is not implemented as a substitute. `create_demo(..., include_com=True)` creates an optional mathematical regression fixture without changing the default 35-marker demo.
 
+## Error messages
+
+User-facing failures raise `backend.errors.AppError` with a stable `code`, optional `params` and an English `detail` fallback. HTTP responses carry all three (`{"detail", "code", "params"}`); background alignment jobs report `error`, `errorCode` and `errorParams`. `frontend/src/errors.ts` renders each code in Chinese and English, so the selected interface language applies to backend errors too, including after switching. Electron IPC keeps only an error's message, so the desktop main process forwards the coded body after a `C3D_ERROR:` marker. Add a code to both files when introducing a new user-facing error.
+
 ## Format adaptations
 
 1. **Numbered parameter arrays.** Vicon can split arrays at 255 entries, including `LABELS2`, `SCALE2`, `OFFSET2` and `UNITS2`. Each family is concatenated before channel indexing. py-c3d 0.6 does not concatenate these analog arrays in its default frame transformation.

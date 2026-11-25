@@ -1,6 +1,7 @@
 import { usePreferences } from "./Preferences";
 import { acquisitionKey } from "./mediaSession";
 import { trialSharingLabel, type TrainingState } from "./trainingSession";
+import { localizedError } from "./errors";
 
 export function TrainingAlignmentStatus({
   state,
@@ -132,7 +133,17 @@ export function TrainingAlignmentStatus({
                   {trial.acquisition.name}
                 </button>
                 <span>{t(trialSharingLabel(trial))}</span>
-                {trial.detail && <small>{t(trial.detail)}</small>}
+                {trial.detail && (
+                  <small>
+                    {t(
+                      localizedError(
+                        trial.detailCode,
+                        trial.detailParams,
+                        trial.detail,
+                      ),
+                    )}
+                  </small>
+                )}
               </li>
             ))}
           </ul>

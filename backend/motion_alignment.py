@@ -9,6 +9,8 @@ import math
 
 import numpy as np
 
+from .errors import AppError
+
 JOINTS = [
     "leftShoulder",
     "rightShoulder",
@@ -76,7 +78,10 @@ def interpolate_pose(query, times, points, max_gap):
 def read_reference(acquisition, start, stop):
     duration = (stop - start - 1) / acquisition.rate
     if duration < 2 or duration > 60:
-        raise ValueError("自动对齐需要 2–60 秒的观察区间，请先调整区间。")
+        raise AppError(
+            "auto_roi_duration",
+            "Automatic alignment needs a 2–60 second observation range. Adjust the range first.",
+        )
     labels = {}
     for i, name in enumerate(acquisition.point_labels):
         if acquisition.kinds[i] != "marker":
@@ -85,15 +90,24 @@ def read_reference(acquisition, start, stop):
         labels.setdefault(key, []).append(i)
     wanted = set(MODEL_LABELS + sum(MARKER_LABELS, []))
     if any(len(labels.get(name, [])) > 1 for name in wanted):
-        raise ValueError("存在多个受试者的同名关节，自动对齐无法确定目标人物。")
+        raise AppError(
+            "auto_ambiguous_subject",
+            "Several subjects share joint labels, so automatic alignment cannot choose the person.",
+        )
     use_model = all(name in labels for name in MODEL_LABELS)
     groups = [[label] for label in MODEL_LABELS] if use_model else MARKER_LABELS
     if any(any(name not in labels for name in groups[j]) for j in FIT):
-        raise ValueError("缺少肩、髋、膝或踝的对应通道，无法自动匹配动作。")
+        raise AppError(
+            "auto_missing_joints",
+            "Shoulder, hip, knee or ankle channels are missing, so motion cannot be matched.",
+        )
     units = acquisition.point_unit.strip().lower()
     factor = {"mm": 0.001, "cm": 0.01, "m": 1}.get(units)
     if factor is None:
-        raise ValueError("自动对齐需要以 mm、cm 或 m 表示的空间通道。")
+        raise AppError(
+            "auto_units_unsupported",
+            "Automatic alignment needs spatial channels in mm, cm or m.",
+        )
     # Read only source rows around the sampling grid, including their residuals.
     frame = np.linspace(
         start + acquisition.rate * 0.1,
@@ -113,7 +127,10 @@ def read_reference(acquisition, start, stop):
         if all(name in labels for name in names):
             xyz[:, j] = np.mean(raw[:, [labels[name][0] for name in names]], axis=1)
     if np.isfinite(xyz[:, FIT]).all(axis=-1).mean() < 0.95:
-        raise ValueError("Vicon 有效关节覆盖不足，请选择完整的动作区间。")
+        raise AppError(
+            "auto_vicon_coverage",
+            "Too few valid Vicon joint samples. Select a complete movement range.",
+        )
     return {
         "times": frame / acquisition.rate,
         "xyz": xyz,
@@ -136,7 +153,9 @@ def observations(rows, aspect=1):
         or not np.isfinite(times).all()
         or np.any(np.diff(times) <= 0)
     ):
-        raise ValueError("素材缺少可用的动作采样或时间戳。")
+        raise AppError(
+            "auto_media_no_samples", "The media has no usable motion samples or timestamps."
+        )
     # Confidence is a detector score, not a calibrated accuracy probability.
     bad = (points[..., 2] < 0.2) | (points[..., :2] < 0).any(-1) | (points[..., :2] > 1).any(-1)
     points[bad] = np.nan
@@ -263,7 +282,10 @@ def search(
         or step <= 0
         or (high - low) / step > 20000
     ):
-        raise ValueError("自动搜索范围过大，请缩小素材范围。")
+        raise AppError(
+            "auto_search_too_large",
+            "The automatic search range is too large. Shorten the media range.",
+        )
     offsets = np.linspace(low, high, max(2, math.ceil((high - low) / step) + 1))
     curve = []
     for i, offset in enumerate(offsets):

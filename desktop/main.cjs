@@ -106,7 +106,12 @@ async function serviceRequest(route, body) {
     signal: AbortSignal.timeout(60000),
   });
   const data = await response.json();
-  if (!response.ok) throw new Error(data.detail || "无法读取文件。");
+  if (!response.ok) {
+    // IPC keeps only the message; the renderer decodes the coded body
+    // (frontend/src/errors.ts, DESKTOP_ERROR_MARKER).
+    if (data.code) throw new Error(`C3D_ERROR:${JSON.stringify(data)}`);
+    throw new Error(data.detail || "无法读取文件。");
+  }
   return data;
 }
 

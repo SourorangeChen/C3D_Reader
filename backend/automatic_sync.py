@@ -12,6 +12,7 @@ from pathlib import Path
 import numpy as np
 
 from .acquisition import file_fingerprint
+from .errors import AppError
 from .motion_alignment import candidates, finish, observations, read_reference, search
 
 
@@ -43,7 +44,10 @@ class AutomaticAlignment:
         subject_x=0.5,
     ):
         if not worker_path().is_file() or sys.platform != "darwin":
-            raise ValueError("自动对齐组件不可用，请使用包含动作识别组件的 macOS 桌面版。")
+            raise AppError(
+                "auto_unavailable",
+                "Automatic alignment is unavailable. Use the macOS desktop app with motion recognition.",
+            )
         self.reference = read_reference(acquisition, start, stop)
         self.paths = [Path(path).expanduser().resolve() for path in paths]
         video = len(paths) == 1 and self.paths[0].suffix.lower() in {
@@ -58,9 +62,12 @@ class AutomaticAlignment:
             or len(self.paths) > 50000
             or any(not p.is_file() or p.name.startswith("._") for p in self.paths)
         ):
-            raise ValueError("无法读取自动对齐素材，请重新导入本机文件。")
+            raise AppError(
+                "auto_media_unreadable",
+                "Cannot read the alignment media. Import the local files again.",
+            )
         if not math.isfinite(origin) or not math.isfinite(subject_x) or not 0 <= subject_x <= 1:
-            raise ValueError("无效的自动对齐参数。")
+            raise AppError("auto_params_invalid", "Invalid automatic alignment settings.")
         if video:
             self.input = {"kind": "video", "path": str(self.paths[0])}
         else:
@@ -75,7 +82,10 @@ class AutomaticAlignment:
                 or not np.isfinite(times).all()
                 or np.any(np.diff(times) <= 0)
             ):
-                raise ValueError("自动对齐需要至少 8 张带有效 FPS 或 PTS 的连续动作图片。")
+                raise AppError(
+                    "auto_images_insufficient",
+                    "Automatic alignment needs at least 8 consecutive images with a valid FPS or PTS.",
+                )
             self.input = {
                 "kind": "images",
                 "paths": [str(p) for p in self.paths],
@@ -140,10 +150,14 @@ class AutomaticAlignment:
                 if item["type"] == "meta":
                     metadata = item
                     if not math.isfinite(item["duration"]) or item["duration"] > 3600:
-                        raise ValueError("自动对齐目前支持一小时以内的素材，请先选取相关片段。")
+                        raise AppError(
+                            "auto_media_too_long",
+                            "Automatic alignment supports media up to one hour. Trim it to the relevant part.",
+                        )
                 elif item["type"] == "error":
-                    raise ValueError(
-                        "无法识别此素材中的动作，请检查格式、人物可见性或选择另一视角。"
+                    raise AppError(
+                        "auto_pose_failed",
+                        "Cannot recognize motion in this media. Check the format, subject visibility or camera view.",
                     )
                 elif item["type"] == "frame":
                     item["time"] += self.origin
@@ -155,12 +169,17 @@ class AutomaticAlignment:
                     fraction = min(1, max(0, (item["time"] - self.origin - lo) / max(hi - lo, 1)))
                     self.update(frames=len(rows), progress=round(begin + span * fraction, 1))
                     if len(rows) > 30000:
-                        raise ValueError("动作采样过多，请缩短素材范围。")
+                        raise AppError(
+                            "auto_samples_too_many", "Too many motion samples. Shorten the media range."
+                        )
             process.wait(timeout=10)
             if self.cancelled.is_set():
                 raise InterruptedError()
             if process.returncode != 0:
-                raise ValueError("动作识别组件未正常完成，请检查素材并重试。")
+                raise AppError(
+                    "auto_worker_failed",
+                    "Motion recognition did not finish. Check the media and retry.",
+                )
         finally:
             if process.poll() is None:
                 process.terminate()
@@ -182,7 +201,10 @@ class AutomaticAlignment:
             low = times[0] - ref["times"][0]
             high = times[-1] - ref["times"][-1]
             if high < low:
-                raise ValueError("素材短于所选 Vicon 动作区间，请缩小观察区间。")
+                raise AppError(
+                    "auto_media_too_short",
+                    "The media is shorter than the selected Vicon range. Narrow the observation range.",
+                )
             self.update(phase="matching", progress=55)
             curve = search(
                 ref,
@@ -248,7 +270,10 @@ class AutomaticAlignment:
             if self.cancelled.is_set():
                 raise InterruptedError()
             if any(file_fingerprint(path) != before for path, before in self.sources):
-                raise ValueError("对齐过程中源文件发生变化，请重新打开素材。")
+                raise AppError(
+                    "auto_source_changed",
+                    "A source file changed during alignment. Open the media again.",
+                )
             result.update(
                 sourceName=self.paths[0].name
                 if len(self.paths) == 1
@@ -261,12 +286,17 @@ class AutomaticAlignment:
         except InterruptedError:
             self.update(status="cancelled", phase="cancelled")
         except (ValueError, OSError, KeyError, TypeError, subprocess.SubprocessError) as error:
+            if not isinstance(error, AppError):
+                error = AppError(
+                    "auto_alignment_failed",
+                    "Automatic alignment failed. Check the source files or import again.",
+                )
             self.update(
                 status="failed",
                 phase="failed",
-                error=str(error)
-                if isinstance(error, ValueError)
-                else "自动对齐失败，请检查源文件或重新导入。",
+                error=error.message,
+                errorCode=error.code,
+                errorParams=error.params,
             )
 
 
@@ -372,7 +402,10 @@ class TrainingAlignment(AutomaticAlignment):
             if self.cancelled.is_set():
                 raise InterruptedError()
             if any(file_fingerprint(path) != before for path, before in self.sources):
-                raise ValueError("对齐过程中源文件发生变化，请重新打开素材。")
+                raise AppError(
+                    "auto_source_changed",
+                    "A source file changed during alignment. Open the media again.",
+                )
             reference_result = values["result"]
             identities, unavailable = [], []
             for key, path in self.targets:
@@ -386,7 +419,10 @@ class TrainingAlignment(AutomaticAlignment):
                         acq = self.load(key)
                         identities.append(self.identity(key, acq))
                         if file_fingerprint(path) != acq.fingerprint:
-                            raise ValueError("源文件已变化，请重新打开。")
+                            raise AppError(
+                                "source_changed",
+                                "The source file changed. Open it again to refresh the acquisition.",
+                            )
                     except (ValueError, OSError) as error:
                         if identities and identities[-1]["id"] == key:
                             identities.pop()
@@ -396,6 +432,8 @@ class TrainingAlignment(AutomaticAlignment):
                                 status="rejected",
                                 reason="metadata_unavailable",
                                 detail=str(error),
+                                detailCode=getattr(error, "code", None),
+                                detailParams=getattr(error, "params", {}),
                             )
                         )
                 else:

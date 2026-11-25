@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { desktop } from "./desktop";
+import { errorMessage, localizedError } from "./errors";
 
 export type AutomaticOptions = {
   acquisitionId: string;
@@ -25,6 +26,8 @@ export type AutomaticJob = {
   progress: number;
   result: AutomaticResult | null;
   error: string | null;
+  errorCode?: string | null;
+  errorParams?: Record<string, unknown>;
 };
 type Props = AutomaticOptions & {
   files: File[];
@@ -119,7 +122,13 @@ export function useAutomaticAlignment(props: Props) {
           else {
             active.current.id = undefined;
             if (value.status === "failed")
-              setError(value.error || "自动对齐失败，请重试。");
+              setError(
+                localizedError(
+                  value.errorCode,
+                  value.errorParams,
+                  value.error || "自动对齐失败，请重试。",
+                ),
+              );
             if (
               value.status === "complete" &&
               value.result?.status === "accepted" &&
@@ -131,7 +140,7 @@ export function useAutomaticAlignment(props: Props) {
           if (version === active.current.version) {
             stop();
             setJob(null);
-            setError((e as Error).message);
+            setError(errorMessage(e));
           }
         }
       };
@@ -139,7 +148,7 @@ export function useAutomaticAlignment(props: Props) {
     } catch (e) {
       if (version === active.current.version) {
         setJob(null);
-        setError((e as Error).message);
+        setError(errorMessage(e));
       }
     }
   };

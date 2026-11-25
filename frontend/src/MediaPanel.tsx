@@ -49,6 +49,7 @@ import {
   type MediaAsset,
   type MediaSession,
 } from "./mediaSession";
+import { errorMessage } from "./errors";
 
 type Props = {
   session: MediaSession;
@@ -296,7 +297,7 @@ export function MediaPanel(props: Props) {
       setMediaSeek(null);
       setBeforeNudge(null);
     } catch (e) {
-      setError((e as Error).message);
+      setError(errorMessage(e));
     }
   };
   useEffect(() => {
@@ -536,7 +537,7 @@ export function MediaPanel(props: Props) {
       setAutoEnabled(true);
       setError("");
     } catch (e) {
-      if (version === readVersion.current) setError((e as Error).message);
+      if (version === readVersion.current) setError(errorMessage(e));
     }
   };
   const mediaIdentity = useMemo<MediaIdentity | undefined>(
