@@ -2344,8 +2344,10 @@ button:hover:not(:disabled) {
   flex: 1;
   min-height: 0;
   display: grid;
-  grid-template-rows: minmax(190px, var(--scene-share)) 8px minmax(
-      125px,
+  /* Preferred minimums give way in short windows (for example with the media
+     comparison toolbar open), so the panels never spill over the timeline. */
+  grid-template-rows: minmax(min(190px, 55%), var(--scene-share)) 8px minmax(
+      min(125px, calc(45% - 8px)),
       var(--signal-share)
     );
 }
@@ -2354,6 +2356,7 @@ button:hover:not(:disabled) {
 }
 .visual-panels .signal-panel {
   min-height: 0;
+  overflow: hidden;
   margin-top: 0;
   display: flex;
   flex-direction: column;
