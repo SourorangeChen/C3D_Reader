@@ -39,7 +39,7 @@
 
 ### macOS 桌面应用（推荐）
 
-在 [Releases](https://github.com/SourorangeChen/C3D_Reader/releases) 下载 `C3D-Reader-0.3.4-macOS-arm64.dmg`，双击打开，将 **C3D Reader.app** 拖到旁边的 **Applications（应用程序）** 文件夹，然后从“应用程序”双击启动。安装后可推出磁盘镜像。也提供 ZIP 解压版本。当前构建适用于 **Apple Silicon（M1 / M2 / M3 / M4 等）和 macOS 14+**，Intel Mac 尚未提供安装包。
+在 [Releases](https://github.com/SourorangeChen/C3D_Reader/releases) 下载 `C3D-Reader-0.4.5-macOS-arm64.dmg`，双击打开，将 **C3D Reader.app** 拖到旁边的 **Applications（应用程序）** 文件夹，然后从“应用程序”双击启动。安装后可推出磁盘镜像。也提供 ZIP 解压版本。当前构建适用于 **Apple Silicon（M1 / M2 / M3 / M4 等）和 macOS 14+**，Intel Mac 尚未提供安装包。
 
 桌面版已经包含 Python、读取引擎、Chromium 和前端资源，使用时无需安装 Python / Node.js，也无需联网或先启动网页服务。
 
@@ -100,7 +100,7 @@ python3 run.py --rebuild
 4. 展开「更多对齐方式」并点击「导入结果 / 时间偏移」，可在「时间对齐」中填写基线和偏移、计算带时区的拍摄时间基线、导入 COM 对齐结果，或从已有视频信号 CSV 估计偏移。COM 采用 `overall_lag_s` 与所选试次的 `timestamp_only_start_s`；未提供共享偏移时，仅对 `accepted` 试次取修正中位数。
 5. 「保存当前对齐」下载 JSON，记录 C3D、素材信息、时间对应和信号搜索依据。0.4.5 起，macOS 每次导入视频只使用当前 trial 及观察区间确定一次 lag，其他 trial 直接共享，无需逐个识别或匹配。切换 trial 保留视频和同一 lag；需要重算时，可在另一个 trial 上点击「以当前 trial 重新确定 lag」。参考 trial 无法可靠对齐时，提示更换 trial，其他 trial 暂不共享。重新启动应用后，仍需选择素材；图片需使用原来的 FPS / PTS 设置，再导入保存的 JSON。
 
-时间约定为 `视频 PTS = 时间戳基线 + 统一偏移 + C3D 相对时间`，正偏移选择更晚的画面。视频用实际呈现时间驱动 Vicon，不假设固定 FPS。自动匹配使用本机 Apple Vision 姿态和 COM 的关节投影匹配思路，用于辅助同步播放，不替代 COM/PCT 的正式验证。支持具备肩、髋、膝、踝对应通道的 2–60 秒观察区间；遮挡、重复动作和多人可能无法可靠对齐，结果需目视复核。不校正时钟漂移。浏览器版仍可使用手动定点、COM JSON 和 CSV 搜索。素材仅在本机读取。算法与数据格式详见 [同步说明](docs/media-sync.md)。自动动作对齐从本地构建的 0.4.1 macOS 安装包开始提供，0.4.5 起改为单个参考 trial 确定 lag、其他 trial 共享。0.4.0 仅包含手动、COM JSON 和 CSV 方法；Releases 中公开的 0.3.4 不包含视频同步。
+时间约定为 `视频 PTS = 时间戳基线 + 统一偏移 + C3D 相对时间`，正偏移选择更晚的画面。视频用实际呈现时间驱动 Vicon，不假设固定 FPS。自动匹配使用本机 Apple Vision 姿态和 COM 的关节投影匹配思路，用于辅助同步播放，不替代 COM/PCT 的正式验证。支持具备肩、髋、膝、踝对应通道的 2–60 秒观察区间；遮挡、重复动作和多人可能无法可靠对齐，结果需目视复核。不校正时钟漂移。浏览器版仍可使用手动定点、COM JSON 和 CSV 搜索。素材仅在本机读取。算法与数据格式详见 [同步说明](docs/media-sync.md)。0.4.5 是首个公开发布、包含视频同步的版本：0.4.0 起支持手动、COM JSON 和 CSV 方法，0.4.1 起 macOS 支持自动动作对齐，0.4.5 起改为单个参考 trial 确定 lag、其他 trial 共享。0.3.4 及更早版本不包含视频同步。
 
 ### 当前文件的全部点位与 COM 导出
 
