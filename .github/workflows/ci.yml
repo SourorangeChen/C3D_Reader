@@ -22,7 +22,7 @@ jobs:
       - run: npx playwright install --with-deps chromium
       - run: npm test
   macos-desktop:
-    runs-on: macos-14
+    runs-on: macos-15
     env:
       C3D_READER_PYTHON: python
     steps:
