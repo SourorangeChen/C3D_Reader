@@ -35,7 +35,7 @@ async def lifespan(_app):
     automatic_alignments.shutdown()
 
 
-app = FastAPI(title="C3D Reader", version="0.4.5", docs_url=None, redoc_url=None, lifespan=lifespan)
+app = FastAPI(title="C3D Reader", version="0.4.6", docs_url=None, redoc_url=None, lifespan=lifespan)
 app.add_middleware(
     TrustedHostMiddleware,
     allowed_hosts=["localhost", "127.0.0.1", "[::1]", "testserver"],
