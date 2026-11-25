@@ -23,7 +23,6 @@ import {
 } from "./mediaSession";
 import {
   Activity,
-  ArrowLeft,
   Box,
   Braces,
   Check,
@@ -54,16 +53,15 @@ import {
 import { Viewer } from "./Viewer";
 import { SignalPlot } from "./SignalPlot";
 import { useFrames } from "./useFrames";
-import { api, formatBytes, isVirtual } from "./types";
+import { api, formatBytes } from "./types";
 import { desktop } from "./desktop";
-import type {
-  Acquisition,
-  Library,
-  ParameterGroup,
-  Selection,
-  SeriesData,
-} from "./types";
+import type { Acquisition, Library, Selection } from "./types";
 import { errorMessage } from "./errors";
+import { channelLists, defaultSelection } from "./workbench";
+import { usePlayback, usePlaybackClock } from "./usePlayback";
+import { useSceneOptions } from "./useSceneOptions";
+import { useParameters, useSeries } from "./useAcquisitionData";
+import { useDialogFocus, usePlaybackShortcuts } from "./useShortcuts";
 
 const countFormat = new Intl.NumberFormat("en");
 const MediaPanel = lazy(() =>
@@ -142,8 +140,6 @@ export default function App() {
     kind: "point",
     id: 0,
   });
-  const [frame, setFrame] = useState(0);
-  const [playing, setPlaying] = useState(false);
   const [showMedia, setShowMedia] = useState(false);
   const [mediaExpanded, setMediaExpanded] = useState(false);
   const [mediaSession] = useState(createMediaSession);
@@ -158,23 +154,41 @@ export default function App() {
   const [incomingMedia, setIncomingMedia] = useState<File[] | null>(null);
   const [mediaClock, setMediaClock] = useState<MediaClock>(EMPTY_CLOCK);
   const consumeMedia = useCallback(() => setIncomingMedia(null), []);
-  const [speed, setSpeed] = useState(1);
-  const [loop, setLoop] = useState(true);
-  const [roi, setRoi] = useState<[number, number]>([0, 0]);
-  const playbackRange = mediaClock.mode ? mediaClock.range : roi;
-  const [hidden, setHidden] = useState<Set<number>>(new Set());
-  const [segments, setSegments] = useState(true);
-  const [trails, setTrails] = useState(false);
-  const [labels, setLabels] = useState(false);
-  const [virtual, setVirtual] = useState(false);
-  const [view, setView] = useState("perspective");
-  const [up, setUp] = useState<"Z" | "Y">("Z");
+  const playback = usePlayback(meta, mediaClock);
+  const {
+    frame,
+    playing,
+    setPlaying,
+    speed,
+    setSpeed,
+    loop,
+    setLoop,
+    roi,
+    playbackRange,
+    seek,
+    advanceMediaFrame,
+    updateRoi,
+  } = playback;
+  const pause = useCallback(() => setPlaying(false), [setPlaying]);
+  const scene = useSceneOptions();
+  const {
+    hidden,
+    segments,
+    setSegments,
+    trails,
+    setTrails,
+    labels,
+    setLabels,
+    showVirtual: virtual,
+    view,
+    setView,
+    up,
+    setUp,
+    toggleHidden,
+  } = scene;
   const [tab, setTab] = useState("marker");
   const [search, setSearch] = useState("");
   const [inspector, setInspector] = useState("info");
-  const [params, setParams] = useState<ParameterGroup[] | null>(null);
-  const [series, setSeries] = useState<SeriesData | null>(null);
-  const [seriesError, setSeriesError] = useState("");
   const [axes, setAxes] = useState([true, true, true]);
   const [loading, setLoading] = useState("");
   const [error, setError] = useState("");
@@ -201,15 +215,25 @@ export default function App() {
     error: frameError,
     retry: retryFrames,
   } = useFrames(meta, frame);
+  usePlaybackClock(playback, meta, !!points, mediaClock.mode);
   const sourceChanged = frameError?.action === "reopen";
   useEffect(() => {
     if (frameError) setPlaying(false);
-    if (frameError?.action === "reopen") {
-      setSeries(null);
-      setParams(null);
+    if (frameError?.action === "reopen")
       setModal((current) => (current === "export" ? null : current));
-    }
-  }, [frameError]);
+  }, [frameError, setPlaying]);
+  const { series, error: seriesError } = useSeries(
+    meta,
+    selection,
+    roi,
+    sourceChanged,
+  );
+  const params = useParameters(
+    meta,
+    inspector === "parameters",
+    sourceChanged,
+    setError,
+  );
   const currentPoint =
     selection.kind === "point" ? meta?.points[selection.id] : null;
   const currentAnalog =
@@ -218,31 +242,23 @@ export default function App() {
   const selectedUnit = currentPoint?.unit || currentAnalog?.unit || "";
   const clock = meta ? frame / meta.pointRate : 0;
   const lastTime = meta ? (meta.frameCount - 1) / meta.pointRate : 0;
-  const applyAcquisition = useCallback((data: Acquisition) => {
-    setPlaying(false);
-    setMediaClock(EMPTY_CLOCK);
-    setIncomingMedia(null);
-    setError("");
-    setMeta(data);
-    setFrame(0);
-    setRoi([0, data.frameCount - 1]);
-    setParams(null);
-    setSeries(null);
-    setSeriesError("");
-    setSearch("");
-    setTab("marker");
-    setVirtual(false);
-    setHidden(new Set(data.points.filter(isVirtual).map((p) => p.id)));
-    const preferred =
-      data.points.find((p) => p.label.endsWith("LANK")) ||
-      data.points.find((p) => p.kind === "marker" && !isVirtual(p)) ||
-      data.points[0];
-    setSelection({
-      kind: preferred ? "point" : "analog",
-      id: preferred?.id || 0,
-    });
-    if (window.innerWidth < 1000) setShowLibrary(false);
-  }, []);
+  const { reset: resetPlayback } = playback;
+  const { reset: resetScene } = scene;
+  const applyAcquisition = useCallback(
+    (data: Acquisition) => {
+      resetPlayback(data.frameCount);
+      setMediaClock(EMPTY_CLOCK);
+      setIncomingMedia(null);
+      setError("");
+      setMeta(data);
+      setSearch("");
+      setTab("marker");
+      resetScene(data.points);
+      setSelection(defaultSelection(data.points));
+      if (window.innerWidth < 1000) setShowLibrary(false);
+    },
+    [resetPlayback, resetScene],
+  );
   const openFile = useCallback(
     async (id: string) => {
       const version = ++loadVersion.current;
@@ -259,7 +275,7 @@ export default function App() {
         if (version === loadVersion.current) setLoading("");
       }
     },
-    [applyAcquisition],
+    [applyAcquisition, setPlaying],
   );
   useEffect(() => {
     let disposed = false;
@@ -343,196 +359,27 @@ export default function App() {
       setLoading("");
     }
   };
-  useEffect(() => {
-    if (!meta || sourceChanged) return;
-    const controller = new AbortController();
-    setSeries(null);
-    setSeriesError("");
-    void api<SeriesData>(
-      `/api/files/${meta.id}/series?kind=${selection.kind}&ids=${selection.id}&start=${roi[0]}&stop=${roi[1] + 1}&limit=900`,
-      { signal: controller.signal },
-    )
-      .then((data) => {
-        if (!controller.signal.aborted) setSeries(data);
-      })
-      .catch((e) => {
-        if (e.name !== "AbortError") setSeriesError(errorMessage(e));
-      });
-    return () => controller.abort();
-  }, [meta, selection, roi, sourceChanged]);
-  useEffect(() => {
-    if (inspector !== "parameters" || !meta || params || sourceChanged) return;
-    const controller = new AbortController();
-    void api<ParameterGroup[]>(`/api/files/${meta.id}/parameters`, {
-      signal: controller.signal,
-    })
-      .then((data) => {
-        if (!controller.signal.aborted) setParams(data);
-      })
-      .catch((e) => {
-        if (e.name !== "AbortError") setError(errorMessage(e));
-      });
-    return () => controller.abort();
-  }, [inspector, meta, params, sourceChanged]);
-  useEffect(() => {
-    if (
-      !playing ||
-      !meta ||
-      !points ||
-      !playbackRange ||
-      mediaClock.mode === "video"
-    )
-      return;
-    let handle = 0;
-    const start = performance.now(),
-      initial = frame;
-    const tick = (now: number) => {
-      // The first rAF timestamp can precede `start`; never step before `initial`.
-      const elapsed = Math.max(0, now - start);
-      const next =
-        initial + Math.floor((elapsed / 1000) * meta.pointRate * speed);
-      if (next > playbackRange[1]) {
-        if (loop)
-          setFrame(
-            playbackRange[0] +
-              ((next - playbackRange[0]) %
-                (playbackRange[1] - playbackRange[0] + 1)),
-          );
-        else {
-          setFrame(playbackRange[1]);
-          setPlaying(false);
-          return;
-        }
-      } else setFrame(next);
-      handle = requestAnimationFrame(tick);
-    };
-    handle = requestAnimationFrame(tick);
-    return () => cancelAnimationFrame(handle);
-    // Restart the clock only on a chunk boundary or playback change.
-  }, [
-    playing,
-    meta,
-    speed,
-    loop,
-    playbackRange,
-    mediaClock.mode,
-    Math.floor(frame / 500),
-    !!points,
-  ]);
-  const advanceMediaFrame = useCallback(
-    (index: number) => {
-      if (meta && Number.isFinite(index))
-        setFrame(Math.max(0, Math.min(meta.frameCount - 1, index)));
-    },
-    [meta],
-  );
-  const seek = useCallback(
-    (index: number) => {
-      if (!meta) return;
-      setPlaying(false);
-      setFrame(Math.max(roi[0], Math.min(roi[1], index)));
-    },
-    [meta, roi],
-  );
   const togglePlay = useCallback(() => {
-    if (!meta || !playbackRange || frameError?.action === "reopen") return;
+    if (frameError?.action === "reopen") return;
     if (frameError) retryFrames();
-    if (frame < playbackRange[0] || frame >= playbackRange[1])
-      setFrame(playbackRange[0]);
-    setPlaying((p) => !p);
-  }, [meta, frame, playbackRange, frameError, retryFrames]);
-  useEffect(() => {
-    const listener = (e: KeyboardEvent) => {
-      if (
-        modal ||
-        !meta ||
-        e.target instanceof HTMLInputElement ||
-        e.target instanceof HTMLSelectElement ||
-        e.target instanceof HTMLTextAreaElement
-      )
-        return;
-      if (e.code === "Space") {
-        e.preventDefault();
-        togglePlay();
-      }
-      if (e.code === "ArrowRight") {
-        e.preventDefault();
-        setPlaying(false);
-        seek(frame + (e.shiftKey ? 10 : 1));
-      }
-      if (e.code === "ArrowLeft") {
-        e.preventDefault();
-        setPlaying(false);
-        seek(frame - (e.shiftKey ? 10 : 1));
-      }
-      if (e.code === "Home") {
-        e.preventDefault();
-        seek(roi[0]);
-      }
-      if (e.code === "End") {
-        e.preventDefault();
-        seek(roi[1]);
-      }
-    };
-    window.addEventListener("keydown", listener);
-    return () => window.removeEventListener("keydown", listener);
-  }, [meta, frame, roi, seek, togglePlay, modal]);
-  useEffect(() => {
-    if (!modal) return;
-    const previous = document.activeElement as HTMLElement | null;
-    const dialog = dialogRef.current;
-    (
-      dialog?.querySelector<HTMLElement>("button, select, input, a[href]") ||
-      dialog
-    )?.focus();
-    const handler = (e: KeyboardEvent) => {
-      if (e.key === "Escape") setModal(null);
-      if (e.key === "Tab" && dialog) {
-        const focusable = [
-          ...dialog.querySelectorAll<HTMLElement>(
-            "button:not(:disabled), select:not(:disabled), input:not(:disabled), a[href], [tabindex='0']",
-          ),
-        ];
-        const first = focusable[0],
-          last = focusable.at(-1);
-        if (e.shiftKey && document.activeElement === first) {
-          e.preventDefault();
-          last?.focus();
-        } else if (!e.shiftKey && document.activeElement === last) {
-          e.preventDefault();
-          first?.focus();
-        }
-      }
-    };
-    window.addEventListener("keydown", handler);
-    return () => {
-      window.removeEventListener("keydown", handler);
-      previous?.focus();
-    };
-  }, [modal]);
-  const toggleHidden = (id: number) =>
-    setHidden((old) => {
-      const next = new Set(old);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
-      return next;
-    });
+    playback.toggle();
+  }, [frameError, retryFrames, playback.toggle]);
+  usePlaybackShortcuts({
+    enabled: !modal && !!meta,
+    frame,
+    roi,
+    seek,
+    togglePlay,
+    pause,
+  });
+  const closeModal = useCallback(() => setModal(null), []);
+  useDialogFocus(modal, dialogRef, closeModal);
   const pickPoint = (id: number) => {
     setSelection({ kind: "point", id });
     if (meta?.points[id].kind === "marker") setTab("marker");
     else setTab("model");
   };
-  const toggleVirtual = () => {
-    setVirtual((v) => !v);
-    setHidden((old) => {
-      const next = new Set(old);
-      meta?.points.filter(isVirtual).forEach((p) => {
-        if (!virtual) next.delete(p.id);
-        else next.add(p.id);
-      });
-      return next;
-    });
-  };
+  const toggleVirtual = () => scene.toggleVirtual(meta?.points || []);
   const saveFolder = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
@@ -552,31 +399,12 @@ export default function App() {
       setLoading("");
     }
   };
-  const visiblePoints =
-    meta?.points.filter(
-      (p) =>
-        (tab === "marker"
-          ? p.kind === "marker" && (virtual || !isVirtual(p))
-          : p.kind !== "marker") &&
-        p.label.toLowerCase().includes(search.toLowerCase()),
-    ) || [];
-  const visibleAnalogs =
-    meta?.analogs.filter((p) =>
-      p.label.toLowerCase().includes(search.toLowerCase()),
-    ) || [];
-  const markerCount =
-    meta?.points.filter((p) => p.kind === "marker" && !isVirtual(p)).length ||
-    0;
-  const modelCount =
-    meta?.points.filter((p) => p.kind !== "marker").length || 0;
-  const updateRoi = (a: number, b: number) => {
-    if (!meta || !Number.isFinite(a + b)) return;
-    a = Math.max(0, Math.min(meta.frameCount - 1, Math.round(a)));
-    b = Math.max(a, Math.min(meta.frameCount - 1, Math.round(b)));
-    setRoi([a, b]);
-    setFrame((f) => Math.max(a, Math.min(b, f)));
-    setPlaying(false);
-  };
+  const {
+    points: visiblePoints,
+    analogs: visibleAnalogs,
+    markerCount,
+    modelCount,
+  } = channelLists(meta, tab, virtual, search);
   return (
     <div
       className="app"
