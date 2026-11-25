@@ -7,11 +7,11 @@ jobs:
       ELECTRON_SKIP_BINARY_DOWNLOAD: "1"
       C3D_READER_PYTHON: python
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
         with:
           python-version: "3.11"
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version: "24"
           cache: npm
@@ -26,11 +26,11 @@ jobs:
     env:
       C3D_READER_PYTHON: python
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
         with:
           python-version: "3.11"
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version: "24"
           cache: npm
@@ -40,7 +40,7 @@ jobs:
       - run: npm run desktop:build
       - run: npm run test:desktop
       - run: C3D_TEST_APP="$PWD/release/mac-arm64/C3D Reader.app/Contents/MacOS/C3D Reader" npm run test:desktop
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: C3D-Reader-macOS-arm64
           path: |
