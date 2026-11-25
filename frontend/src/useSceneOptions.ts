@@ -17,11 +17,17 @@ export function useSceneOptions() {
     setShowVirtual(false);
     setHidden(virtualPointIds(points));
   }, []);
-  const toggleHidden = (id: number) => setHidden((old) => toggled(old, id));
-  const toggleVirtual = (points: Point[]) => {
-    setShowVirtual((v) => !v);
-    setHidden((old) => withVirtualPoints(old, points, !showVirtual));
-  };
+  const toggleHidden = useCallback(
+    (id: number) => setHidden((old) => toggled(old, id)),
+    [],
+  );
+  const toggleVirtual = useCallback(
+    (points: Point[]) => {
+      setShowVirtual((v) => !v);
+      setHidden((old) => withVirtualPoints(old, points, !showVirtual));
+    },
+    [showVirtual],
+  );
 
   return {
     hidden,

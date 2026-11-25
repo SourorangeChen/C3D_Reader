@@ -94,3 +94,19 @@ export function channelLists(
     modelCount: points.filter((p) => p.kind !== "marker").length,
   };
 }
+
+// The selected point or analog channel with its display label and unit.
+export function selectedChannel(
+  meta: Acquisition | null,
+  selection: Selection,
+) {
+  const point = selection.kind === "point" ? meta?.points[selection.id] : null;
+  const analog =
+    selection.kind === "analog" ? meta?.analogs[selection.id] : null;
+  return {
+    point,
+    analog,
+    label: point?.label || analog?.label || "",
+    unit: point?.unit || analog?.unit || "",
+  };
+}
