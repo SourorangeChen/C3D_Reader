@@ -34,7 +34,7 @@ async def lifespan(_app):
     automatic_alignments.shutdown()
 
 
-app = FastAPI(title="C3D Reader", version="0.4.1", docs_url=None, redoc_url=None, lifespan=lifespan)
+app = FastAPI(title="C3D Reader", version="0.4.5", docs_url=None, redoc_url=None, lifespan=lifespan)
 app.add_middleware(
     TrustedHostMiddleware,
     allowed_hosts=["localhost", "127.0.0.1", "[::1]", "testserver"],
@@ -165,6 +165,7 @@ def desktop_open(file: Folder, x_desktop_token: str = Header(default="")):
 
 class AutomaticAlignmentRequest(BaseModel):
     acquisitionId: str
+    acquisitionIds: Optional[list[str]] = Field(default=None, min_length=1, max_length=200)
     paths: list[str] = Field(min_length=1, max_length=50000)
     start: int = 0
     stop: Optional[int] = None
@@ -181,6 +182,33 @@ def start_automatic_alignment(
     acquisition = get_acq(body.acquisitionId)
     start, stop = frame_range(acquisition, body.start, body.stop)
     try:
+        if body.acquisitionIds is not None:
+            ids = list(dict.fromkeys(body.acquisitionIds))
+            if body.acquisitionId not in ids:
+                raise ValueError("当前试次不在整组匹配列表中，请刷新文件夹。")
+            with cache_lock:
+                if any(key not in files for key in ids):
+                    raise ValueError("试次列表已变化，请刷新文件夹后重新导入。")
+                targets = [(key, files[key]) for key in ids]
+
+            def load_trial(key):
+                try:
+                    return get_acq(key)
+                except HTTPException as error:
+                    raise ValueError(str(error.detail)) from error
+
+            return automatic_alignments.start_training(
+                acquisition,
+                targets,
+                load_trial,
+                body.paths,
+                body.times,
+                body.origin,
+                body.subjectX,
+                reference_id=body.acquisitionId,
+                start=start,
+                stop=stop,
+            )
         return automatic_alignments.start(
             acquisition, body.paths, start, stop, body.times, body.origin, body.subjectX
         )
@@ -505,7 +533,7 @@ def export(
 
 @app.get("/api/health")
 def health():
-    return {"status": "ok", "version": "0.4.1"}
+    return {"status": "ok", "version": app.version}
 
 
 dist = ROOT / "frontend" / "dist"

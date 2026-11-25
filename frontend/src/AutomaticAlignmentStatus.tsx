@@ -32,7 +32,7 @@ export function AutomaticAlignmentStatus({
     motion_match_weak:
       "动作匹配不够可靠，未自动应用偏移。请选择明显动作或另一视角。",
     motion_match_ambiguous:
-      "存在相似的重复动作，未自动应用偏移。请预览候选或选择更有区分度的动作区间。",
+      "存在相似的重复动作，未自动应用偏移。请试用候选或选择更有区分度的动作区间。",
   };
   return (
     <div className="automatic-alignment" aria-label={t("自动动作对齐")}>
@@ -45,7 +45,7 @@ export function AutomaticAlignmentStatus({
             running ? automatic.cancel() : void automatic.start()
           }
         >
-          {t(running ? "取消识别" : "重新识别")}
+          {t(running ? "取消识别" : job || error ? "重新识别" : "开始识别")}
         </button>
       </div>
       <div role="status" aria-live="polite">
@@ -111,7 +111,7 @@ export function AutomaticAlignmentStatus({
               key={i}
               onClick={() => onCandidate(candidate.offset)}
             >
-              {t("预览候选 {0}：{1} 秒", [i + 1, candidate.offset.toFixed(3)])}
+              {t("试用候选 {0}：{1} 秒", [i + 1, candidate.offset.toFixed(3)])}
             </button>
           ))}
         </div>

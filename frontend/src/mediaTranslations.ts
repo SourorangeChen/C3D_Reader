@@ -1,4 +1,107 @@
 export const mediaEnglish: Record<string, string> = {
+  "共同 lag {0} 秒": "Shared lag {0} s",
+  "共享 lag · 待复核": "Shared lag · review pending",
+  "单 trial 确定 lag": "Determine lag from one trial",
+  "以当前 trial 重新确定 lag": "Recalculate lag using this trial",
+  取消对齐: "Cancel alignment",
+  "参考 trial：{0}": "Reference trial: {0}",
+  "正在使用 {0} 确定 lag… {1}%": "Determining lag from {0}… {1}%",
+  "正在识别参考 trial 对应的视频动作…":
+    "Recognizing video motion for the reference trial…",
+  "正在精化参考 trial 的 lag…": "Refining the reference trial lag…",
+  "正在匹配参考 trial 的动作…": "Matching the reference trial motion…",
+  "参考 trial 对齐进度": "Reference trial alignment progress",
+  "共同 lag {0} 秒；已供其他 {1} 个 trial 共享。":
+    "Shared lag {0} s; shared with {1} other trials.",
+  "参考 trial 未能可靠确定 lag，请更换 trial 重试。":
+    "The reference trial could not determine a reliable lag. Select another trial and retry.",
+  "其他 trial 直接使用该 lag，不再单独识别或匹配动作。":
+    "Other trials use this lag directly without individual motion recognition or matching.",
+  "无法读取当前 trial 的时间信息，未应用共享 lag。":
+    "Cannot read this trial's timing; the shared lag was not applied.",
+  "当前 trial 未应用共享 lag，请以当前 trial 重新确定 lag。":
+    "This trial does not have the shared lag. Recalculate using this trial.",
+  "参考 trial 对齐已取消，尚未共享 lag。":
+    "Reference trial alignment cancelled; lag has not been shared.",
+  "导入视频时只匹配当前 trial，确定 lag 后供同文件夹其他 trial 共享。":
+    "Import a video to match only the current trial, then share its lag with other trials in this folder.",
+  "参考 trial 已确定 lag，其他 trial 直接共享。":
+    "The reference trial determined the lag; other trials share it directly.",
+  "当前 trial 共享参考 trial 的 lag，未单独进行动作匹配。":
+    "This trial shares the reference trial's lag without individual motion matching.",
+  "参考 trial 对齐失败，请更换 trial 后重试。":
+    "Reference trial alignment failed. Select another trial and retry.",
+  "无法读取参考 trial 对齐进度，请重试。":
+    "Unable to read reference trial alignment progress. Try again.",
+  "共享对齐结果无效，请更新桌面版后重试。":
+    "Invalid shared alignment result. Update the desktop app and try again.",
+  "lag 共享范围": "Trials sharing this lag",
+  参考匹配: "Reference matched",
+  已共享: "Shared lag",
+  无法读取: "Unreadable",
+  未共享: "Not shared",
+  "确定 lag 中": "Determining lag",
+  等待共享: "Waiting for lag",
+  "已恢复当前试次的素材与对齐。": "Restored this trial's media and alignment.",
+  "已保留素材，正在检查是否包含当前试次的动作…":
+    "Media retained. Checking for this trial's motion…",
+  "当前素材尚未通过此试次的动作匹配。可更换素材，或手动对齐。":
+    "This trial's motion has not been reliably matched. Choose other media or align manually.",
+  "已保留素材；当前试次尚未对齐。":
+    "Media retained; this trial has not been aligned.",
+  重新检查当前试次: "Recheck this trial",
+  "正在定位视频帧…": "Seeking video frame…",
+  "视频时间超出素材范围。": "Video time is outside the media range.",
+  "视频与 Vicon 对照": "Video and Vicon comparison",
+  "视频时间（秒）": "Video time (s)",
+  视频帧号: "Video frame",
+  "Vicon 帧号": "Vicon frame",
+  "视频从 0 编号；图片沿用源文件帧号":
+    "Video frames start at 0; images retain their source frame numbers",
+  上一视频帧: "Previous video frame",
+  下一视频帧: "Next video frame",
+  "上一 Vicon 帧": "Previous Vicon frame",
+  "下一 Vicon 帧": "Next Vicon frame",
+  "时间偏移 {0} 秒": "Time offset {0} s",
+  对齐微调: "Fine-tune alignment",
+  "固定 Vicon 帧微调": "Hold Vicon frame",
+  "视频时间减少 {0} 毫秒": "Decrease video time by {0} ms",
+  "视频时间增加 {0} 毫秒": "Increase video time by {0} ms",
+  画面提前: "Earlier image",
+  画面延后: "Later image",
+  撤销对齐微调: "Undo alignment adjustment",
+  图片使用源文件帧号: "Images retain source frame numbers",
+  "正在读取视频帧索引…": "Reading video frame index…",
+  "帧索引不可用；仍可按时间定位":
+    "Frame index unavailable; time seeking still works",
+  "视频帧号从 0 开始": "Video frames start at 0",
+  "该视频帧不在当前 Vicon 同步区间内。":
+    "This video frame is outside the current Vicon synchronization range.",
+  "此帧号没有对应图片。": "No image exists for this frame number.",
+  放大视频: "Enlarge video",
+  还原视频: "Restore video size",
+  "还原视频（Esc）": "Restore video size (Esc)",
+  播放视频: "Play video",
+  暂停视频: "Pause video",
+  对齐方式: "Alignment method",
+  自动对齐: "Automatic alignment",
+  手动对齐: "Manual alignment",
+  应用手动对齐: "Apply manual alignment",
+  开始识别: "Start recognition",
+  正在自动对齐: "Aligning automatically",
+  尚未对齐: "Not aligned",
+  "候选对齐 · 待复核": "Candidate alignment · review pending",
+  "自动对齐需要 macOS 桌面版":
+    "Automatic alignment requires the macOS desktop app",
+  "先在下方时间轴定位 C3D 帧，再在素材中找到相同动作，最后应用手动对齐。":
+    "Locate a C3D frame on the timeline below, find the same movement in the media, then apply manual alignment.",
+  更多对齐方式: "More alignment options",
+  "已有 COM 结果，或需要直接填写时间偏移时使用。":
+    "Use an existing COM result or enter a time offset directly.",
+  "导入结果 / 时间偏移": "Import result / time offset",
+  "试用候选 {0}：{1} 秒": "Try candidate {0}: {1} s",
+  "存在相似的重复动作，未自动应用偏移。请试用候选或选择更有区分度的动作区间。":
+    "Repeated actions give similar matches; no offset was applied. Try a candidate or select a more distinctive motion range.",
   松开以导入文件: "Drop to import files",
   "支持视频或编号图片序列；C3D 拖放请使用桌面版":
     "Drop a video or numbered images; C3D drop requires the desktop app",

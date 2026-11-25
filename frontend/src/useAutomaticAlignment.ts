@@ -3,6 +3,7 @@ import { desktop } from "./desktop";
 
 export type AutomaticOptions = {
   acquisitionId: string;
+  acquisitionIds?: string[];
   start: number;
   stop: number;
   times?: number[];

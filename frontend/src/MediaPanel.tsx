@@ -1,4 +1,11 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import {
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  useSyncExternalStore,
+} from "react";
+import { createPortal } from "react-dom";
 import {
   Film,
   Images,
@@ -6,6 +13,10 @@ import {
   X,
   ChevronLeft,
   ChevronRight,
+  Maximize2,
+  Minimize2,
+  Play,
+  Pause,
 } from "lucide-react";
 import { usePreferences } from "./Preferences";
 import type { Acquisition, Selection } from "./types";
@@ -19,24 +30,36 @@ import {
   readImagePTS,
   saveJSON,
 } from "./synchronization";
-import type {
-  ImageFrame,
-  MediaClock,
-  MediaIdentity,
-  SyncMapping,
-} from "./synchronization";
+import type { MediaClock, MediaIdentity, SyncMapping } from "./synchronization";
 import { SyncSettings } from "./SyncSettings";
 import { useVideoClock } from "./useVideoClock";
 import { useAutomaticAlignment } from "./useAutomaticAlignment";
 import { AutomaticAlignmentStatus } from "./AutomaticAlignmentStatus";
+import {
+  startTraining,
+  cancelTraining,
+  subscribeTraining,
+} from "./trainingSession";
+import { TrainingAlignmentStatus } from "./TrainingAlignmentStatus";
+import { desktop } from "./desktop";
+import { useVideoTiming } from "./useVideoTiming";
+import { ComparisonControls } from "./ComparisonControls";
+import {
+  acquisitionKey,
+  type MediaAsset,
+  type MediaSession,
+} from "./mediaSession";
 
-type Asset =
-  | { kind: "video"; file: File; url: string }
-  | { kind: "images"; frames: ImageFrame[] };
 type Props = {
+  session: MediaSession;
+  trialIds: string[];
+  onTrial: (id: string) => void;
   meta: Acquisition;
   frame: number;
   playing: boolean;
+  expanded: boolean;
+  comparisonHost: HTMLDivElement | null;
+  onExpanded: (expanded: boolean) => void;
   speed: number;
   loop: boolean;
   roi: [number, number];
@@ -67,26 +90,83 @@ function useImageURL(file?: File) {
 }
 export function MediaPanel(props: Props) {
   const { t } = usePreferences();
-  const [asset, setAsset] = useState<Asset | null>(null);
+  const training = useSyncExternalStore(
+    (listener) => subscribeTraining(props.session, listener),
+    () => props.session.training,
+  );
+  const trialKey = acquisitionKey(props.meta);
+  const initial = useRef({
+    saved: props.session.trials.get(trialKey),
+    setup: props.session.trials.get(trialKey) ?? props.session.active,
+  }).current;
+  const [asset, setAsset] = useState<MediaAsset | null>(
+    initial.setup?.asset ?? null,
+  );
   const [duration, setDuration] = useState(0);
-  const [enabled, setEnabled] = useState(false);
-  const [autoEnabled, setAutoEnabled] = useState(true);
-  const [subjectX, setSubjectX] = useState("0.5");
-  const [mapping, setMapping] = useState<SyncMapping>({
-    baseline: 0,
-    lag: 0,
-    source: "manual",
-  });
-  const [origin, setOrigin] = useState(0);
-  const [fps, setFPS] = useState("");
-  const [frameBase, setFrameBase] = useState("0");
-  const [pts, setPTS] = useState<number[] | null>(null);
+  const [enabled, setEnabled] = useState(!!initial.saved);
+  const [autoEnabled, setAutoEnabled] = useState(!initial.saved);
+  const [restored, setRestored] = useState(!!initial.saved);
+  const [reusingMedia, setReusingMedia] = useState(!!initial.setup);
+  const [method, setMethod] = useState<"auto" | "manual">(
+    initial.saved
+      ? initial.saved.mapping.source === "auto"
+        ? "auto"
+        : "manual"
+      : desktop?.startAutoAlignment
+        ? "auto"
+        : "manual",
+  );
+  const [subjectX, setSubjectX] = useState(initial.setup?.subjectX ?? "0.5");
+  const [mapping, setMapping] = useState<SyncMapping>(
+    initial.saved?.mapping ?? {
+      baseline: 0,
+      lag: 0,
+      source: "manual",
+    },
+  );
+  const [origin, setOrigin] = useState(initial.setup?.origin ?? 0);
+  const [fps, setFPS] = useState(initial.setup?.fps ?? "");
+  const [frameBase, setFrameBase] = useState(initial.setup?.frameBase ?? "0");
+  const [pts, setPTS] = useState<number[] | null>(initial.setup?.pts ?? null);
   const [previewIndex, setPreviewIndex] = useState(0);
   const [previewTime, setPreviewTime] = useState(0);
   const [settings, setSettings] = useState(false);
   const [error, setError] = useState("");
+  const [mediaSeek, setMediaSeek] = useState<{
+    frame: number;
+    time: number;
+    imageIndex?: number;
+  } | null>(null);
+  const [beforeNudge, setBeforeNudge] = useState<SyncMapping | null>(null);
   const video = useRef<HTMLVideoElement>(null);
+  const timing = useVideoTiming(
+    asset?.kind === "video" ? asset.file : undefined,
+    video,
+  );
   const readVersion = useRef(0);
+  useEffect(() => {
+    if (!asset) return;
+    const setup = { asset, fps, frameBase, pts, origin, subjectX };
+    props.session.active = setup;
+    if (enabled && !props.blocked) {
+      props.session.trials.delete(trialKey);
+      props.session.trials.set(trialKey, { ...setup, mapping });
+      if (props.session.trials.size > 250)
+        props.session.trials.delete(props.session.trials.keys().next().value!);
+    }
+  }, [
+    asset,
+    fps,
+    frameBase,
+    pts,
+    origin,
+    subjectX,
+    enabled,
+    mapping,
+    props.blocked,
+    props.session,
+    trialKey,
+  ]);
   const offset = mapping.baseline + mapping.lag;
   const sourceTime = offset + props.frame / props.meta.pointRate;
   const imageTimes = useMemo(() => {
@@ -133,6 +213,21 @@ export function MediaPanel(props: Props) {
     ],
   );
   const synced = enabled && ready && !props.blocked;
+  useEffect(() => {
+    if (props.playing && synced && asset) props.onExpanded(true);
+  }, [props.playing, synced, asset, props.onExpanded]);
+  useEffect(() => () => props.onExpanded(false), [props.onExpanded]);
+  useEffect(() => {
+    if (!props.expanded) return;
+    const restore = (event: KeyboardEvent) => {
+      if (event.key === "Escape" && !settings && !event.defaultPrevented) {
+        props.onExpanded(false);
+        event.preventDefault();
+      }
+    };
+    window.addEventListener("keydown", restore);
+    return () => window.removeEventListener("keydown", restore);
+  }, [props.expanded, props.onExpanded, settings]);
   const outOfRange =
     synced && (sourceTime < firstTime - 1e-8 || sourceTime > lastTime + 1e-8);
   const nearest = nearestSample(imageTimes, sourceTime);
@@ -149,7 +244,14 @@ export function MediaPanel(props: Props) {
     asset?.kind === "images" &&
     nearest >= 0 &&
     Math.abs(imageTimes[nearest] - sourceTime) > localPeriod * 0.5 + 1e-8;
-  const imageIndex = synced ? nearest : previewIndex;
+  const activeSeek =
+    !props.playing && mediaSeek?.frame === props.frame ? mediaSeek : null;
+  useEffect(() => {
+    if (props.playing || mediaSeek?.frame !== props.frame) setMediaSeek(null);
+  }, [props.playing, props.frame]);
+  const imageIndex = synced
+    ? (activeSeek?.imageIndex ?? nearest)
+    : previewIndex;
   const imageFile =
     asset?.kind === "images" && !outOfRange && !missingImage
       ? asset.frames[imageIndex]?.file
@@ -160,7 +262,7 @@ export function MediaPanel(props: Props) {
     if (!files.length) return;
     setError("");
     try {
-      let next: Asset;
+      let next: MediaAsset;
       if (files.length === 1 && isVideo(files[0]))
         next = {
           kind: "video",
@@ -171,11 +273,19 @@ export function MediaPanel(props: Props) {
         next = { kind: "images", frames: indexImages(files) };
       else throw new Error("请选择一个视频，或同一录制的按帧编号图片序列。");
       readVersion.current++;
+      cancelTraining(props.session);
+      if (next.kind === "video" && desktop?.startAutoAlignment)
+        props.session.trials.clear();
+      props.session.assets.add(next);
       props.onPlaying(false);
       setAsset(next);
+      props.onExpanded(false);
       setDuration(0);
       setEnabled(false);
+      setRestored(false);
+      setReusingMedia(false);
       setAutoEnabled(true);
+      setMethod(desktop?.startAutoAlignment ? "auto" : "manual");
       setPTS(null);
       setFrameBase("0");
       setFPS("");
@@ -183,6 +293,8 @@ export function MediaPanel(props: Props) {
       setPreviewTime(0);
       setOrigin(0);
       setMapping({ baseline: 0, lag: 0, source: "manual" });
+      setMediaSeek(null);
+      setBeforeNudge(null);
     } catch (e) {
       setError((e as Error).message);
     }
@@ -193,12 +305,6 @@ export function MediaPanel(props: Props) {
       props.onConsumed();
     }
   }, [props.incoming]);
-  useEffect(
-    () => () => {
-      if (asset?.kind === "video") URL.revokeObjectURL(asset.url);
-    },
-    [asset],
-  );
   useEffect(() => {
     props.onClock(synced && asset ? { mode: asset.kind, range } : EMPTY_CLOCK);
   }, [synced, asset?.kind, range?.[0], range?.[1], props.onClock]);
@@ -211,6 +317,8 @@ export function MediaPanel(props: Props) {
   );
   useEffect(() => {
     if (props.blocked) {
+      props.session.trials.delete(trialKey);
+      setRestored(false);
       setEnabled(false);
       setSettings(false);
       video.current?.pause();
@@ -229,6 +337,7 @@ export function MediaPanel(props: Props) {
     range,
     offset,
     origin,
+    pausedMediaTime: activeSeek?.time,
     onFrame: props.onFrame,
     onPlaying: props.onPlaying,
     onError: setError,
@@ -241,7 +350,7 @@ export function MediaPanel(props: Props) {
         : asset?.frames.map(({ file }) => file) || [],
     [asset],
   );
-  const automatic = useAutomaticAlignment({
+  const singleAutomatic = useAutomaticAlignment({
     files: automaticFiles,
     times: asset?.kind === "images" ? imageTimes : undefined,
     acquisitionId: props.meta.id,
@@ -250,9 +359,11 @@ export function MediaPanel(props: Props) {
     origin,
     subjectX: Number(subjectX),
     ready,
-    enabled: autoEnabled,
+    enabled: autoEnabled && method === "auto" && asset?.kind !== "video",
     blocked: props.blocked,
     onStart: () => {
+      props.session.trials.delete(trialKey);
+      setRestored(false);
       props.onPlaying(false);
       video.current?.pause();
       setEnabled(false);
@@ -265,17 +376,136 @@ export function MediaPanel(props: Props) {
         evidence: result,
       }),
   });
+  const isTraining = asset?.kind === "video";
+  const trainingCurrent = isTraining && training.asset === asset;
+  const trainingOptions = () => ({
+    acquisitionId: props.meta.id,
+    acquisitionIds: props.trialIds,
+    start: props.roi[0],
+    stop: props.roi[1] + 1,
+    origin,
+    subjectX: Number(subjectX),
+  });
+  const runTraining = () => {
+    if (!asset || !ready || props.blocked) return;
+    setEnabled(false);
+    setRestored(false);
+    setAutoEnabled(true);
+    props.onPlaying(false);
+    video.current?.pause();
+    void startTraining(
+      props.session,
+      { asset, fps, frameBase, pts, origin, subjectX },
+      trainingOptions(),
+      props.meta.name,
+    );
+  };
+  const automatic = isTraining
+    ? {
+        available: !!desktop?.startAutoAlignment,
+        job: trainingCurrent ? training.job : null,
+        error: trainingCurrent ? training.error : "",
+        start: runTraining,
+        cancel: () => cancelTraining(props.session),
+      }
+    : singleAutomatic;
+  useEffect(() => {
+    if (
+      isTraining &&
+      ready &&
+      autoEnabled &&
+      method === "auto" &&
+      !props.blocked &&
+      training.asset !== asset
+    )
+      runTraining();
+  }, [asset, ready, autoEnabled, method, props.blocked]);
+  useEffect(() => {
+    if (!trainingCurrent || method !== "auto") return;
+    if (training.job?.status === "running") {
+      setEnabled(false);
+      setRestored(false);
+      props.onPlaying(false);
+      video.current?.pause();
+    } else if (training.result) {
+      const saved = props.session.trials.get(trialKey);
+      if (saved?.asset === asset && !props.blocked) {
+        setMapping(saved.mapping);
+        setEnabled(true);
+        setError("");
+      } else setEnabled(false);
+    }
+  }, [training, trialKey, method, props.blocked]);
   const apply = (value: SyncMapping) => {
+    setRestored(false);
     if (value.source !== "auto") {
       automatic.cancel();
       setAutoEnabled(false);
+      setMethod("manual");
     }
     props.onPlaying(false);
     video.current?.pause();
     setMapping(value);
+    setMediaSeek(null);
+    setBeforeNudge(null);
     setEnabled(true);
     setError("");
   };
+  const editManually = () => {
+    setRestored(false);
+    automatic.cancel();
+    setAutoEnabled(false);
+    setMethod("manual");
+    props.onPlaying(false);
+    video.current?.pause();
+    setEnabled(false);
+    if (synced) setPreviewIndex(Math.max(0, nearest));
+    setPreviewTime(video.current?.currentTime || 0);
+  };
+  const recognizing = automatic.job?.status === "running";
+  const reuseNotice =
+    isTraining && trainingCurrent && method === "auto"
+      ? ""
+      : restored
+        ? "已恢复当前试次的素材与对齐。"
+        : reusingMedia && !synced
+          ? recognizing
+            ? "已保留素材，正在检查是否包含当前试次的动作…"
+            : automatic.error || automatic.job?.result?.status === "rejected"
+              ? "当前素材尚未通过此试次的动作匹配。可更换素材，或手动对齐。"
+              : "已保留素材；当前试次尚未对齐。"
+          : "";
+  const trainingTrial = trainingCurrent
+    ? training.result?.trials.find(
+        (trial) =>
+          trial.acquisition.id === props.meta.id &&
+          (trial.status === "rejected" ||
+            acquisitionKey(trial.acquisition) === trialKey),
+      )
+    : undefined;
+  const trainingNotice =
+    trainingCurrent && method === "auto"
+      ? training.error
+        ? "参考 trial 对齐失败，请更换 trial 后重试。"
+        : recognizing
+          ? t("正在使用 {0} 确定 lag… {1}%", [
+              training.referenceName,
+              Math.round(training.job!.progress),
+            ])
+          : training.result
+            ? trainingTrial?.status === "accepted"
+              ? "参考 trial 已确定 lag，其他 trial 直接共享。"
+              : trainingTrial?.status === "shared"
+                ? "当前 trial 共享参考 trial 的 lag，未单独进行动作匹配。"
+                : trainingTrial?.reason === "metadata_unavailable"
+                  ? "无法读取当前 trial 的时间信息，未应用共享 lag。"
+                  : training.result.lag != null
+                    ? "当前 trial 未应用共享 lag，请以当前 trial 重新确定 lag。"
+                    : "参考 trial 未能可靠确定 lag，请更换 trial 重试。"
+            : training.job?.status === "cancelled"
+              ? "参考 trial 对齐已取消，尚未共享 lag。"
+              : ""
+      : "";
   const anchor = () => {
     const time =
       asset?.kind === "video"
@@ -365,6 +595,73 @@ export function MediaPanel(props: Props) {
         "video_pts_s = baseline + overall_lag_s + c3d_relative_time_s",
     });
   };
+  const seekVicon = (rawFrame: number) => {
+    if (props.blocked) return;
+    props.onPlaying(false);
+    video.current?.pause();
+    setMediaSeek(null);
+    props.onFrame(
+      Math.max(
+        props.roi[0],
+        Math.min(props.roi[1], Math.round(rawFrame) - props.meta.firstFrame),
+      ),
+    );
+  };
+  const seekMedia = (time: number, index?: number) => {
+    if (!ready || props.blocked || !Number.isFinite(time)) return;
+    if (time < firstTime || time > lastTime) {
+      setError("视频时间超出素材范围。");
+      return;
+    }
+    const vicon = Math.round((time - offset) * props.meta.pointRate);
+    if (synced && (!range || vicon < range[0] || vicon > range[1])) {
+      setError("该视频帧不在当前 Vicon 同步区间内。");
+      return;
+    }
+    props.onPlaying(false);
+    video.current?.pause();
+    if (synced) {
+      setMediaSeek({ frame: vicon, time: time - origin, imageIndex: index });
+      props.onFrame(vicon);
+    }
+    if (asset?.kind === "video" && video.current) {
+      video.current.currentTime = time - origin;
+      setPreviewTime(time - origin);
+    } else {
+      setPreviewIndex(index ?? nearestSample(imageTimes, time));
+    }
+    setError("");
+  };
+  const seekMediaFrame = (rawFrame: number) => {
+    if (!Number.isSafeInteger(rawFrame)) return;
+    if (asset?.kind === "video") {
+      if (rawFrame < 0 || rawFrame >= timing.times.length) return;
+      seekMedia(timing.times[rawFrame] + origin + 0.000001);
+    } else if (asset?.kind === "images") {
+      const index = asset.frames.findIndex((item) => item.frame === rawFrame);
+      if (index < 0) {
+        setError("此帧号没有对应图片。");
+        return;
+      }
+      seekMedia(imageTimes[index], index);
+    }
+  };
+  const stepMedia = (direction: number) => {
+    if (asset?.kind === "video") seekMediaFrame(timing.frame + direction);
+    else if (asset?.kind === "images") {
+      const next = asset.frames[imageIndex + direction];
+      if (next) seekMediaFrame(next.frame);
+    }
+  };
+  const nudge = (direction: number) => {
+    const original = beforeNudge ?? mapping;
+    apply({
+      ...mapping,
+      lag: mapping.lag + direction / props.meta.pointRate,
+      source: "nudge",
+    });
+    setBeforeNudge(original);
+  };
   const sourceName =
     asset?.kind === "video"
       ? asset.file.name
@@ -376,12 +673,109 @@ export function MediaPanel(props: Props) {
           ])
         : t("本机视频 / 图片序列");
   const displayTime =
-    asset?.kind === "video" ? previewTime + origin : imageTimes[imageIndex];
+    asset?.kind === "video"
+      ? (timing.presentedTime ?? previewTime) + origin
+      : imageTimes[imageIndex];
+  const status = synced
+    ? mapping.source === "auto"
+      ? mapping.evidence?.motionChecked === false
+        ? "共享 lag · 待复核"
+        : "自动对齐 · 待复核"
+      : mapping.source === "candidate"
+        ? "候选对齐 · 待复核"
+        : "已建立时间对应 · 待复核"
+    : recognizing
+      ? "正在自动对齐"
+      : "尚未对齐";
   return (
-    <section className="media-panel" aria-label={t("视频与图片同步")}>
+    <section
+      className={`media-panel ${props.expanded ? "expanded" : ""}`}
+      aria-label={t("视频与图片同步")}
+    >
+      {asset &&
+        props.comparisonHost &&
+        createPortal(
+          <ComparisonControls
+            time={outOfRange || missingImage ? NaN : displayTime}
+            mediaFrame={
+              outOfRange || missingImage
+                ? null
+                : asset.kind === "video"
+                  ? timing.frame < 0
+                    ? null
+                    : timing.frame
+                  : (asset.frames[imageIndex]?.frame ?? null)
+            }
+            mediaFirst={asset.kind === "video" ? 0 : asset.frames[0].frame}
+            mediaLast={
+              asset.kind === "video"
+                ? timing.times.length - 1
+                : asset.frames.at(-1)!.frame
+            }
+            viconFrame={props.meta.firstFrame + props.frame}
+            viconFirst={props.meta.firstFrame + props.roi[0]}
+            viconLast={props.meta.firstFrame + props.roi[1]}
+            status={status}
+            indexStatus={
+              asset.kind === "images"
+                ? "图片使用源文件帧号"
+                : timing.loading
+                  ? "正在读取视频帧索引…"
+                  : timing.seeking
+                    ? "正在定位视频帧…"
+                    : timing.error
+                      ? "帧索引不可用；仍可按时间定位"
+                      : "视频帧号从 0 开始"
+            }
+            offset={offset}
+            sharedLag={
+              trainingCurrent &&
+              method === "auto" &&
+              training.result?.lag != null
+                ? training.result.lag
+                : undefined
+            }
+            rate={props.meta.pointRate}
+            synced={synced}
+            blocked={props.blocked || recognizing}
+            stepping={timing.seeking}
+            canUndo={!!beforeNudge}
+            canNudge={!(trainingCurrent && method === "auto")}
+            onTime={(time) => seekMedia(time)}
+            onMediaFrame={seekMediaFrame}
+            onMediaStep={stepMedia}
+            onVicon={seekVicon}
+            onNudge={nudge}
+            onUndo={() => {
+              if (beforeNudge) apply(beforeNudge);
+            }}
+          />,
+          props.comparisonHost,
+        )}
       <div className="media-heading">
         <Film size={15} />
         <strong title={sourceName}>{sourceName}</strong>
+        {props.expanded && synced && (
+          <button
+            className="icon-button"
+            aria-label={t(props.playing ? "暂停视频" : "播放视频")}
+            title={t(props.playing ? "暂停视频" : "播放视频")}
+            onClick={() => props.onPlaying(!props.playing)}
+          >
+            {props.playing ? <Pause size={15} /> : <Play size={15} />}
+          </button>
+        )}
+        {asset && (
+          <button
+            className="icon-button"
+            aria-label={t(props.expanded ? "还原视频" : "放大视频")}
+            title={t(props.expanded ? "还原视频（Esc）" : "放大视频")}
+            aria-pressed={props.expanded}
+            onClick={() => props.onExpanded(!props.expanded)}
+          >
+            {props.expanded ? <Minimize2 size={15} /> : <Maximize2 size={15} />}
+          </button>
+        )}
         <button
           className="icon-button"
           aria-label={t("关闭视频面板")}
@@ -393,6 +787,29 @@ export function MediaPanel(props: Props) {
           <X size={15} />
         </button>
       </div>
+      {trainingNotice && (
+        <div className="trial-media-notice" role="status">
+          <span>{t(trainingNotice)}</span>
+        </div>
+      )}
+      {reuseNotice && (
+        <div className="trial-media-notice" role="status">
+          <span>{t(reuseNotice)}</span>
+          {restored && automatic.available && !isTraining && (
+            <button
+              className="button"
+              disabled={!ready || props.blocked}
+              onClick={() => {
+                setRestored(false);
+                setMethod("auto");
+                setAutoEnabled(true);
+              }}
+            >
+              {t("重新检查当前试次")}
+            </button>
+          )}
+        </div>
+      )}
       <div
         className={`media-stage ${outOfRange || missingImage ? "media-unavailable" : ""}`}
       >
@@ -404,9 +821,16 @@ export function MediaPanel(props: Props) {
             muted
             playsInline
             preload="auto"
-            controls={!synced}
+            controls={!synced && !recognizing}
             aria-label={t("参考视频")}
-            onKeyDown={(e) => e.stopPropagation()}
+            onKeyDown={(e) => {
+              if (e.key === "Escape" && props.expanded) {
+                props.onExpanded(false);
+                e.preventDefault();
+              }
+              e.stopPropagation();
+            }}
+            onPlay={() => props.onExpanded(true)}
             onLoadedMetadata={(e) => {
               const d = e.currentTarget.duration;
               if (Number.isFinite(d) && d > 0) setDuration(d);
@@ -414,6 +838,8 @@ export function MediaPanel(props: Props) {
             }}
             onTimeUpdate={(e) => setPreviewTime(e.currentTarget.currentTime)}
             onError={() => {
+              props.session.trials.delete(trialKey);
+              setRestored(false);
               setError("视频无法解码，请选择浏览器支持的视频格式。");
               setEnabled(false);
               setDuration(0);
@@ -549,7 +975,52 @@ export function MediaPanel(props: Props) {
                 </button>
               )}
             </div>
-            {!synced && (
+          </>
+        )}
+        {asset && (
+          <>
+            <div
+              className="alignment-methods"
+              role="group"
+              aria-label={t("对齐方式")}
+            >
+              <button
+                className="button"
+                aria-pressed={method === "auto"}
+                disabled={!automatic.available || props.blocked}
+                title={
+                  !automatic.available
+                    ? t("自动对齐需要 macOS 桌面版")
+                    : undefined
+                }
+                onClick={() => {
+                  if (method === "auto") return;
+                  setMethod("auto");
+                  setAutoEnabled(true);
+                  if (isTraining && ready) runTraining();
+                }}
+              >
+                {t("自动对齐")}
+              </button>
+              <button
+                className="button"
+                aria-pressed={method === "manual"}
+                disabled={props.blocked}
+                onClick={() => {
+                  if (method !== "manual") editManually();
+                }}
+              >
+                {t("手动对齐")}
+              </button>
+            </div>
+            {method === "manual" && !synced && (
+              <p className="sync-help manual-alignment-help">
+                {t(
+                  "先在下方时间轴定位 C3D 帧，再在素材中找到相同动作，最后应用手动对齐。",
+                )}
+              </p>
+            )}
+            {!synced && method === "manual" && asset.kind === "images" && (
               <div className="media-image-seek">
                 <button
                   className="icon-button"
@@ -577,106 +1048,74 @@ export function MediaPanel(props: Props) {
                 </button>
               </div>
             )}
-          </>
-        )}
-        {asset && (
-          <>
-            <div className="media-readout">
-              <span>
-                {t(
-                  synced
-                    ? mapping.source === "auto"
-                      ? "自动对齐 · 待复核"
-                      : "已建立时间对应 · 待复核"
-                    : "独立预览",
-                )}
-              </span>
-              <span>
-                {t("视频时间")}{" "}
-                {Number.isFinite(displayTime) ? displayTime.toFixed(4) : "—"} s
-              </span>
-              <span>
-                {t("C3D 帧")} {props.meta.firstFrame + props.frame}
-              </span>
-            </div>
-            {!synced && asset.kind === "video" && (
-              <label className="media-preview-time">
-                {t("预览视频时间（秒）")}
-                <input
-                  type="number"
-                  min="0"
-                  max={duration}
-                  step="0.01"
-                  value={Number(previewTime.toFixed(4))}
-                  onChange={(e) => {
-                    const time = Number(e.target.value);
-                    if (
-                      video.current &&
-                      Number.isFinite(time) &&
-                      time >= 0 &&
-                      time < duration
-                    ) {
-                      video.current.pause();
-                      video.current.currentTime = time;
-                      setPreviewTime(time);
-                    }
-                  }}
-                />
-              </label>
+            {method === "auto" && isTraining && (
+              <TrainingAlignmentStatus
+                state={trainingCurrent ? training : null}
+                currentId={props.meta.id}
+                currentKey={trialKey}
+                ready={ready && !props.blocked}
+                available={automatic.available}
+                subjectX={subjectX}
+                onSubjectX={setSubjectX}
+                onStart={runTraining}
+                onCancel={automatic.cancel}
+                onTrial={props.onTrial}
+              />
             )}
-            <AutomaticAlignmentStatus
-              automatic={automatic}
-              ready={ready && !props.blocked}
-              subjectX={subjectX}
-              onSubjectX={setSubjectX}
-              onCandidate={(candidate) =>
-                apply({
-                  baseline: 0,
-                  lag: candidate,
-                  source: "candidate",
-                  evidence: automatic.job?.result || undefined,
-                })
-              }
-            />
+            {method === "auto" && !restored && !isTraining && (
+              <AutomaticAlignmentStatus
+                automatic={singleAutomatic}
+                ready={ready && !props.blocked}
+                subjectX={subjectX}
+                onSubjectX={setSubjectX}
+                onCandidate={(candidate) =>
+                  apply({
+                    baseline: 0,
+                    lag: candidate,
+                    source: "candidate",
+                    evidence: automatic.job?.result || undefined,
+                  })
+                }
+              />
+            )}
             <div className="sync-actions">
-              {!synced ? (
+              {!synced && method === "manual" ? (
                 <button
                   className="button primary"
                   disabled={!ready || props.blocked}
                   onClick={anchor}
                 >
                   <Link2 size={14} />
-                  {t("将当前画面对齐到此 C3D 帧")}
+                  {t("应用手动对齐")}
                 </button>
-              ) : (
+              ) : synced ? (
+                <button className="button" onClick={editManually}>
+                  {t("调整对齐")}
+                </button>
+              ) : null}
+            </div>
+            {!recognizing && (
+              <details className="media-alignment-more">
+                <summary>{t("更多对齐方式")}</summary>
+                <p className="sync-help">
+                  {t("已有 COM 结果，或需要直接填写时间偏移时使用。")}
+                </p>
                 <button
                   className="button"
+                  disabled={!ready || props.blocked}
                   onClick={() => {
                     props.onPlaying(false);
                     video.current?.pause();
-                    setEnabled(false);
                     automatic.cancel();
                     setAutoEnabled(false);
-                    setPreviewIndex(Math.max(0, nearest));
+                    setMethod("manual");
+                    setSettings(true);
                   }}
                 >
-                  {t("调整对齐")}
+                  {t("导入结果 / 时间偏移")}
                 </button>
-              )}
-              <button
-                className="button"
-                disabled={!ready || props.blocked}
-                onClick={() => {
-                  props.onPlaying(false);
-                  video.current?.pause();
-                  automatic.cancel();
-                  setAutoEnabled(false);
-                  setSettings(true);
-                }}
-              >
-                {t("时间对齐")}
-              </button>
-            </div>
+              </details>
+            )}
             {synced && (
               <p className="sync-help">
                 {range
@@ -688,13 +1127,6 @@ export function MediaPanel(props: Props) {
                       ],
                     )
                   : t("当前观察区间与素材没有时间交集，请调整基线或偏移。")}
-              </p>
-            )}
-            {!synced && (
-              <p className="sync-help">
-                {t(
-                  "先定位 C3D 帧，再在上方预览相同动作，点击对齐。也可导入 COM 结果或填写偏移。",
-                )}
               </p>
             )}
           </>

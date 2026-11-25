@@ -36,7 +36,16 @@ def merge_windows(windows):
 
 
 class AutomaticAlignment:
-    def __init__(self, acquisition, paths, start, stop, image_times=None, origin=0, subject_x=0.5):
+    def __init__(
+        self,
+        acquisition,
+        paths,
+        start,
+        stop,
+        image_times=None,
+        origin=0,
+        subject_x=0.5,
+    ):
         if not worker_path().is_file() or sys.platform != "darwin":
             raise ValueError("自动对齐组件不可用，请使用包含动作识别组件的 macOS 桌面版。")
         self.reference = read_reference(acquisition, start, stop)
@@ -272,6 +281,36 @@ class AutomaticAlignments:
 
     def start(self, acquisition, paths, start, stop, image_times=None, origin=0, subject_x=0.5):
         job = AutomaticAlignment(acquisition, paths, start, stop, image_times, origin, subject_x)
+        return self.launch(job)
+
+    def start_training(
+        self,
+        acquisition,
+        targets,
+        load,
+        paths,
+        image_times=None,
+        origin=0,
+        subject_x=0.5,
+        reference_id=None,
+        start=0,
+        stop=None,
+    ):
+        job = TrainingAlignment(
+            acquisition,
+            targets,
+            load,
+            paths,
+            image_times,
+            origin,
+            subject_x,
+            reference_id,
+            start,
+            stop,
+        )
+        return self.launch(job)
+
+    def launch(self, job):
         with self.lock:
             for previous in self.jobs.values():
                 if previous.snapshot()["status"] == "running":
@@ -292,3 +331,88 @@ class AutomaticAlignments:
         with self.lock:
             for job in self.jobs.values():
                 job.cancel()
+
+
+class TrainingAlignment(AutomaticAlignment):
+    """Match one selected trial; distribute its lag using other trials' headers only."""
+
+    def __init__(
+        self,
+        acquisition,
+        targets,
+        load,
+        paths,
+        image_times=None,
+        origin=0,
+        subject_x=0.5,
+        reference_id=None,
+        start=0,
+        stop=None,
+    ):
+        super().__init__(
+            acquisition,
+            paths,
+            start,
+            stop if stop is not None else acquisition.count,
+            image_times,
+            origin,
+            subject_x,
+        )
+        self.targets, self.load = targets, load
+        self.reference_id = reference_id or next(
+            key for key, path in targets if path == acquisition.path
+        )
+        self.reference_identity = self.identity(self.reference_id, acquisition)
+        self.update(total=len(targets), checked=0)
+
+    @staticmethod
+    def identity(key, acquisition):
+        return dict(id=key, **acquisition.timing_metadata())
+
+    def update(self, **values):
+        if values.get("status") == "complete" and values.get("result") is not None:
+            from .training_alignment import share_reference_result
+
+            if self.cancelled.is_set():
+                raise InterruptedError()
+            if any(fingerprint(path) != before for path, before in self.sources):
+                raise ValueError("对齐过程中源文件发生变化，请重新打开素材。")
+            reference_result = values["result"]
+            identities, unavailable = [], []
+            for key, path in self.targets:
+                if self.cancelled.is_set():
+                    raise InterruptedError()
+                if key == self.reference_id:
+                    identities.append(self.reference_identity)
+                elif reference_result.get("status") == "accepted":
+                    try:
+                        # No joint read, motion search or fit is performed for shared trials.
+                        acq = self.load(key)
+                        identities.append(self.identity(key, acq))
+                        if fingerprint(path) != acq.fingerprint:
+                            raise ValueError("源文件已变化，请重新打开。")
+                    except (ValueError, OSError) as error:
+                        if identities and identities[-1]["id"] == key:
+                            identities.pop()
+                        unavailable.append(
+                            dict(
+                                acquisition=dict(id=key, name=path.name),
+                                status="rejected",
+                                reason="metadata_unavailable",
+                                detail=str(error),
+                            )
+                        )
+                else:
+                    # Without a reference lag, other trials are not even decoded.
+                    unavailable.append(
+                        dict(
+                            acquisition=dict(id=key, name=path.name),
+                            status="rejected",
+                            reason="reference_not_matched",
+                        )
+                    )
+            values["result"] = share_reference_result(
+                reference_result, self.reference_identity, identities, unavailable
+            )
+            values["checked"] = 1
+        super().update(**values)

@@ -15,6 +15,7 @@ export type GaitEvent = {
 export type Acquisition = {
   id: string;
   name: string;
+  revision?: string;
   size: number;
   firstFrame: number;
   lastFrame: number;

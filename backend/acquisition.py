@@ -5,6 +5,7 @@ loading a trial into RAM. Vicon's numbered parameter arrays are concatenated.
 """
 
 import csv
+import hashlib
 import io
 import math
 import re
@@ -301,14 +302,21 @@ class Acquisition:
         # Robust view fit, so one tracking outlier cannot hide the subject.
         return np.percentile(valid, [1, 99], axis=0).tolist()
 
-    def metadata(self):
+    def timing_metadata(self):
+        """Trial identity and original-frame timing without reading point samples."""
         return dict(
             name=self.path.name,
-            size=self.path.stat().st_size,
+            revision=hashlib.sha256(repr(self.fingerprint).encode()).hexdigest()[:24],
+            size=self.fingerprint[0],
             firstFrame=self.first,
-            lastFrame=self.last,
             frameCount=self.count,
             pointRate=self.rate,
+        )
+
+    def metadata(self):
+        return dict(
+            **self.timing_metadata(),
+            lastFrame=self.last,
             analogRate=self.analog_rate,
             samplesPerFrame=self.samples,
             duration=self.count / self.rate,

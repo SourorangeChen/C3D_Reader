@@ -15,6 +15,17 @@ def trial(tmp_path):
     return Acquisition(create_demo(tmp_path / "walking.c3d"))
 
 
+def test_revision_changes_when_the_source_changes(trial):
+    import os
+
+    first = trial.metadata()["revision"]
+    assert first == trial.metadata()["revision"]
+    assert len(first) == 24
+    source_stat = trial.path.stat()
+    os.utime(trial.path, ns=(source_stat.st_atime_ns, source_stat.st_mtime_ns + 1_000_000_000))
+    assert Acquisition(trial.path).metadata()["revision"] != first
+
+
 @pytest.mark.parametrize("scale", [-0.01, 0.1])
 def test_values_match_reference_reader(tmp_path, scale):
     path = tmp_path / "scaled.c3d"
@@ -167,3 +178,17 @@ def test_rejects_truncated_data(tmp_path):
         stream.truncate(path.stat().st_size - 10000)
     with pytest.raises(ValueError, match="Truncated"):
         Acquisition(path)
+
+
+def test_timing_metadata_does_not_read_motion_samples(trial, monkeypatch):
+    metadata = trial.metadata()
+
+    def unexpected(*args, **kwargs):
+        raise AssertionError("Shared lag requires only header timing, not point samples")
+
+    monkeypatch.setattr(trial, "points", unexpected)
+    timing = trial.timing_metadata()
+    assert timing == {
+        key: metadata[key]
+        for key in ("name", "revision", "size", "firstFrame", "frameCount", "pointRate")
+    }

@@ -11,9 +11,16 @@ import {
   useEffect,
   useRef,
   useState,
+  useSyncExternalStore,
 } from "react";
+import { subscribeTraining, trialSharingLabel } from "./trainingSession";
 import { EMPTY_CLOCK, isImage, isVideo } from "./synchronization";
 import type { MediaClock } from "./synchronization";
+import {
+  acquisitionKey,
+  createMediaSession,
+  disposeMediaSession,
+} from "./mediaSession";
 import {
   Activity,
   ArrowLeft,
@@ -137,6 +144,16 @@ export default function App() {
   const [frame, setFrame] = useState(0);
   const [playing, setPlaying] = useState(false);
   const [showMedia, setShowMedia] = useState(false);
+  const [mediaExpanded, setMediaExpanded] = useState(false);
+  const [mediaSession] = useState(createMediaSession);
+  const training = useSyncExternalStore(
+    (listener) => subscribeTraining(mediaSession, listener),
+    () => mediaSession.training,
+  );
+  useEffect(() => () => disposeMediaSession(mediaSession), [mediaSession]);
+  const [comparisonHost, setComparisonHost] = useState<HTMLDivElement | null>(
+    null,
+  );
   const [incomingMedia, setIncomingMedia] = useState<File[] | null>(null);
   const [mediaClock, setMediaClock] = useState<MediaClock>(EMPTY_CLOCK);
   const consumeMedia = useCallback(() => setIncomingMedia(null), []);
@@ -751,7 +768,23 @@ export default function App() {
                 >
                   <File size={13} />
                   <span>{f.name}</span>
-                  <small>{formatBytes(f.size)}</small>
+                  <small title={formatBytes(f.size)}>
+                    {(() => {
+                      const trial = training.result?.trials.find(
+                        (trial) => trial.acquisition.id === f.id,
+                      );
+                      return trial
+                        ? t(trialSharingLabel(trial))
+                        : training.job?.status === "running" &&
+                            training.ids.includes(f.id)
+                          ? t(
+                              training.referenceId === f.id
+                                ? "确定 lag 中"
+                                : "等待共享",
+                            )
+                          : formatBytes(f.size);
+                    })()}
+                  </small>
                 </button>
               ))}
             {library && !library.files.length && (
@@ -998,7 +1031,10 @@ export default function App() {
               ) : null}
             </div>
           )}
-          <div className="visual-panels">
+          <div className="comparison-toolbar-host" ref={setComparisonHost} />
+          <div
+            className={`visual-panels ${showMedia && mediaExpanded ? "media-expanded" : ""}`}
+          >
             <section
               className={`scene-panel ${showMedia ? "with-media" : ""}`}
               aria-label={t("三维视图")}
@@ -1088,10 +1124,25 @@ export default function App() {
                     }
                   >
                     <MediaPanel
-                      key={`${meta.id}:${meta.firstFrame}:${meta.frameCount}:${meta.pointRate}`}
+                      key={acquisitionKey(meta)}
+                      session={mediaSession}
+                      onTrial={(id) => void openFile(id)}
+                      trialIds={
+                        meta.id === "demo"
+                          ? ["demo"]
+                          : [
+                              ...new Set([
+                                ...(library?.files.map((f) => f.id) || []),
+                                meta.id,
+                              ]),
+                            ]
+                      }
                       meta={meta}
                       frame={frame}
                       playing={playing}
+                      expanded={mediaExpanded}
+                      comparisonHost={comparisonHost}
+                      onExpanded={setMediaExpanded}
                       speed={speed}
                       loop={loop}
                       roi={roi}

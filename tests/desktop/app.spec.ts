@@ -1,4 +1,5 @@
 import { resolvePython } from "../python-runtime";
+import { openAlignmentSettings } from "../media-helpers";
 import {
   test,
   expect,
@@ -6,7 +7,7 @@ import {
   type ElectronApplication,
   type Page,
 } from "@playwright/test";
-import { mkdtemp, readFile, realpath } from "node:fs/promises";
+import { mkdtemp, readFile, realpath, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { execFileSync } from "node:child_process";
@@ -319,9 +320,8 @@ test("local image synchronization and profile downloads work inside the desktop 
     })),
   );
   await page.getByLabel("源视频 FPS", { exact: true }).fill("10");
-  await page
-    .getByRole("button", { name: "将当前画面对齐到此 C3D 帧", exact: true })
-    .click();
+  await page.getByRole("button", { name: "手动对齐", exact: true }).click();
+  await page.getByRole("button", { name: "应用手动对齐", exact: true }).click();
   await page.getByLabel("当前帧", { exact: true }).fill("11");
   const picture = page.getByAltText("原视频帧 1", { exact: true });
   await expect(picture).toBeVisible();
@@ -334,7 +334,7 @@ test("local image synchronization and profile downloads work inside the desktop 
       item.setSavePath(destination),
     );
   }, output);
-  await page.getByRole("button", { name: "时间对齐", exact: true }).click();
+  await openAlignmentSettings(page);
   await page.getByRole("button", { name: "保存当前对齐", exact: true }).click();
   await expect
     .poll(async () => {
@@ -393,22 +393,24 @@ test("bundled video playback and signal alignment use the packaged service", asy
     mimeType: "video/webm",
     buffer: Buffer.from(movie),
   });
+  await page.getByRole("button", { name: "手动对齐", exact: true }).click();
   await expect(
-    page.getByRole("button", { name: "时间对齐", exact: true }),
+    page.getByRole("button", { name: "应用手动对齐", exact: true }),
   ).toBeEnabled();
+  await expect(page.getByLabel("视频帧号", { exact: true })).toHaveValue("0");
+  await expect(page.getByLabel("Vicon 帧号", { exact: true })).toHaveValue("1");
   const frame = page.getByLabel("当前帧", { exact: true });
   const video = page.getByLabel("参考视频", { exact: true });
   await frame.fill("51");
-  await page.getByLabel("预览视频时间（秒）").fill("0.75");
-  await page
-    .getByRole("button", { name: "将当前画面对齐到此 C3D 帧", exact: true })
-    .click();
+  await page.getByLabel("视频时间（秒）").fill("0.75");
+  await page.getByRole("button", { name: "应用手动对齐", exact: true }).click();
   await frame.fill("101");
   await expect
     .poll(() => video.evaluate((v: HTMLVideoElement) => v.currentTime))
     .toBeCloseTo(1.25, 2);
   await page.getByLabel("播放速度", { exact: true }).selectOption("0.5");
   await page.getByRole("button", { name: "播放", exact: true }).click();
+  await expect(page.locator(".media-panel")).toHaveClass(/expanded/);
   await expect
     .poll(async () => Number(await frame.inputValue()))
     .toBeGreaterThan(105);
@@ -457,4 +459,103 @@ test("bundled video playback and signal alignment use the packaged service", asy
   const result = await aligned.json();
   expect(result.status).toBe("accepted");
   expect(result.lag).toBeCloseTo(0.12, 5);
+
+  const retainedVideo = await video.getAttribute("src");
+  await application.evaluate(
+    ({ app }, source) => app.emit("open-file", { preventDefault() {} }, source),
+    fixture,
+  );
+  await expect(
+    page.getByRole("heading", { name: "拖入 文件.C3D", exact: true }),
+  ).toBeVisible();
+  await expect(page.locator("video")).toHaveAttribute("src", retainedVideo!);
+  await expect(page.locator(".media-readout")).not.toContainText("时间偏移");
+  await page.locator(".demo-row").click();
+  await expect(
+    page.getByRole("heading", { name: "Synthetic walking", exact: true }),
+  ).toBeVisible();
+  await expect(page.locator(".media-readout")).toContainText(
+    "时间偏移 0.2500 秒",
+  );
+  await expect(page.locator(".trial-media-notice")).toContainText(
+    "已恢复当前试次",
+  );
+});
+
+test("packaged native worker matches only the selected reference trial before sharing lag", async () => {
+  const second = path.join(folder, "other-training.c3d");
+  execFileSync(resolvePython(), [
+    "-c",
+    "from backend.demo import create_demo; import sys; create_demo(sys.argv[1])",
+    second,
+  ]);
+  await application.evaluate(
+    ({ app }, source) => app.emit("open-file", { preventDefault() {} }, source),
+    fixture,
+  );
+  await expect(page.locator(".file-row")).toHaveCount(2);
+  const bytes = await page.evaluate(async () => {
+    const mimeType = "video/mp4;codecs=avc1.42001E";
+    if (!MediaRecorder.isTypeSupported(mimeType))
+      throw new Error("Native MP4 fixture encoding unavailable");
+    const canvas = document.createElement("canvas");
+    canvas.width = 320;
+    canvas.height = 240;
+    const context = canvas.getContext("2d")!;
+    const stream = canvas.captureStream(10);
+    const recorder = new MediaRecorder(stream, { mimeType });
+    const chunks: Blob[] = [];
+    recorder.ondataavailable = (event) => chunks.push(event.data);
+    const stopped = new Promise<void>((resolve) => {
+      recorder.onstop = () => resolve();
+    });
+    recorder.start();
+    for (let i = 0; i < 32; i++) {
+      context.fillStyle = "#111113";
+      context.fillRect(0, 0, 320, 240);
+      context.fillStyle = "#72aef8";
+      context.fillRect(i * 3, 60, 20, 40);
+      await new Promise((resolve) => setTimeout(resolve, 100));
+    }
+    recorder.stop();
+    await stopped;
+    stream.getTracks().forEach((track) => track.stop());
+    return [...new Uint8Array(await new Blob(chunks).arrayBuffer())];
+  });
+  const movie = path.join(folder, "synthetic-no-person.mp4");
+  await writeFile(movie, Buffer.from(bytes));
+  let jobURL = "";
+  page.on("request", (request) => {
+    if (
+      request.method() === "GET" &&
+      /\/api\/auto-alignment\/[^/]+$/.test(request.url())
+    )
+      jobURL = request.url();
+  });
+  await page.getByLabel("区间结束帧", { exact: true }).fill("300");
+  await page.getByRole("button", { name: "视频同步", exact: true }).click();
+  await page.getByLabel("导入视频", { exact: true }).setInputFiles(movie);
+  await expect(
+    page.getByLabel("单 trial 确定 lag", { exact: true }),
+  ).toContainText("参考 trial 未能可靠确定 lag", { timeout: 15000 });
+  const result = await (await page.request.get(jobURL)).json();
+  expect(result.status).toBe("complete");
+  expect(result.total).toBe(2);
+  expect(result.checked).toBe(1);
+  expect(result.result.referenceTrial.name).toBe("拖入 文件.C3D");
+  expect(result.result.lag).toBeNull();
+  expect(result.result.trials).toHaveLength(2);
+  expect(
+    result.result.trials.every((trial: any) => trial.status === "rejected"),
+  ).toBe(true);
+  await expect(page.locator(".media-readout")).toContainText("尚未对齐");
+  const source = await page.locator("video").getAttribute("src");
+  await page
+    .locator(".file-row")
+    .filter({ hasText: "other-training.c3d" })
+    .click();
+  await expect(page.locator("video")).toHaveAttribute("src", source!);
+  await expect(page.locator(".trial-media-notice")).toContainText(
+    "参考 trial 未能可靠确定 lag",
+  );
 });

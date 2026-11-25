@@ -1,3 +1,4 @@
+import { openAlignmentSettings } from "../media-helpers";
 import { test, expect, _electron as electron } from "@playwright/test";
 import { mkdtemp, readFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -40,8 +41,8 @@ test("raw media import finds the action and synchronizes without manual offsets"
     await page
       .getByLabel("导入视频", { exact: true })
       .setInputFiles(process.env.C3D_SYNC_VIDEO!);
-    const status = page.getByLabel("自动动作对齐", { exact: true });
-    await expect(status).toContainText("已自动应用", { timeout: 130000 });
+    const status = page.getByLabel("单 trial 确定 lag", { exact: true });
+    await expect(status).toContainText("共同 lag", { timeout: 130000 });
     await expect(page.locator(".media-readout")).toContainText(
       "自动对齐 · 待复核",
     );
@@ -101,7 +102,7 @@ test("raw media import finds the action and synchronizes without manual offsets"
         ),
       destination,
     );
-    await page.getByRole("button", { name: "时间对齐", exact: true }).click();
+    await openAlignmentSettings(page);
     await page
       .getByRole("button", { name: "保存当前对齐", exact: true })
       .click();

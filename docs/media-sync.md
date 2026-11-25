@@ -36,6 +36,22 @@ position the video. A configurable PTS origin maps external raw PTS onto the
 browser media timeline when their origins differ. No fixed video FPS is assumed.
 Native browser codec support applies; unsupported files show an actionable error.
 
+The comparison toolbar keeps displayed video PTS, source video frame number and
+original Vicon frame number together above both views, including enlarged mode.
+Mediabunny reads local packet metadata to index video frames in presentation
+order; `requestVideoFrameCallback` identifies the picture actually on screen.
+Video indices start at zero and do not use nominal FPS or `presentedFrames`
+counters. Unreadable indexes remain unavailable while time seeking still works.
+Images keep their filename frame numbers and missing samples stay blank.
+
+Seeking a video frame selects its actual PTS and the nearest Vicon sample. When
+Vicon samples are coarser than the video, the explicitly selected video picture
+is retained while paused; subsequent Vicon stepping resumes timestamp mapping.
+The separate video and Vicon step controls respect each source's sampling.
+Earlier/later image adjustments pause playback, hold the Vicon frame and change
+the offset by one Vicon sample interval; undo restores the mapping from before
+the adjustment sequence. These edits retain the visual-review status.
+
 Image filenames retain source frame numbers, including gaps. Timing uses the
 user's FPS for that recording and explicit zero/one-based numbering, or a CSV with
 `frame,video_pts_s` (zero-based source frame). Missing image moments are blank;
@@ -45,10 +61,68 @@ an image frame interval; supply FPS or a sequence with additional timing evidenc
 
 Playback loops within the intersection of source coverage and the C3D observation
 range. Seeking outside coverage reports the mismatch, without pretending an
-endpoint image is valid. Media is reselected on a C3D acquisition change so an
-unrelated recording cannot silently inherit synchronization.
+endpoint image is valid. On macOS, importing a video matches **only the currently
+selected trial and observation interval**. Once that reference supplies a reliable
+lag, all other C3D trials currently listed in the folder (up to 200) share it
+directly. The demo remains a separate scope. There is no per-trial pose extraction,
+search, scoring, consensus or training-identity test for the other trials.
+
+The reference uses the existing coarse/fine Apple Vision joint-camera fit and
+motion reliability checks. It needs a usable 2–60 second observation interval.
+An ambiguous or rejected reference leaves every trial unaligned; the app asks
+the user to select another trial and retry instead of automatically scanning
+other trials. The retry button uses the newly selected trial and its current ROI.
+A successfully recalculated reference replaces the shared lag for the folder.
+
+```
+trial baseline = (firstFrame - 1) / pointRate
+shared lag = reference combined offset - reference baseline
+video PTS = trial baseline + shared lag + C3D relative time
+          = (original Vicon frame - 1) / pointRate + shared lag
+```
+
+Other trials require only readable C3D timing metadata; missing joint channels
+or a different action do not prevent sharing. Their first-frame baselines may
+differ, but their lag is exactly the reference lag. A trial whose timing metadata
+cannot be read is marked unreadable. Video coverage is checked during playback;
+source moments outside the recording remain unavailable. Sharing does not claim
+that another trial's motion was matched or that its training identity was verified.
+The file list and scope list distinguish “Reference matched” from “Shared lag”.
+Exported evidence identifies the reference and records `motionChecked=false` for
+shared trials, without copying reference correlation into their own motion score.
+
+Trial switching and closing the panel do not cancel the app-owned task or rerun
+recognition. Replacing the video, cancelling, or choosing manual mode cancels an
+active task, and late responses cannot overwrite the next selection. The video,
+reference provenance and mappings remain available in the current app session.
+Starting a new reference match clears previous associations. C3D revisions prevent
+restoring stale mappings after source changes. Media object URLs are released
+when the app session ends; exported alignment JSON is the durable handoff.
+
+The comparison toolbar displays the shared lag. Per-trial nudge controls are
+hidden in this automatic sharing mode to keep the lag identical. Manual alignment
+remains an explicit alternative for the current trial. Image sequences retain
+their existing per-trial matching workflow; browser mode supports manual alignment
+without native recognition.
+
+Starting media playback enlarges the video area beside the 3D view, temporarily
+hiding setup controls and the signal chart. The shared timeline stays available;
+synced playback also has a play/pause button in the media heading. Pausing keeps
+the enlarged view for frame inspection. Restore video size or Escape brings back
+the previous layout without changing its saved panel proportions or alignment.
+The heading also offers manual enlargement before playback. Media retains its
+aspect ratio and is displayed without cropping.
 
 ## Alignment methods and limitations
+
+The panel separates automatic and manual alignment. The macOS desktop app
+defaults to automatic matching; the browser defaults to manual anchors. Switching
+to manual stops recognition and exposes independent media seeking and the apply
+action. Changing image timing keeps the selected method. While recognition runs,
+manual anchors and time-offset settings are hidden; selecting manual cancels the
+job before editing. COM imports and numeric offsets are under More alignment
+options. Trying a rejected candidate applies a provisional mapping marked for
+review rather than presenting it as an accepted automatic result.
 
 - Automatic motion matching (macOS desktop): importing a video starts local
   Apple Vision body-pose recognition. Images start after their FPS or PTS is
