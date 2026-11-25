@@ -6,6 +6,7 @@ import {
   droppedFiles,
   observationRange,
   playbackFrame,
+  toggleSidePanel,
   toggled,
   virtualPointIds,
   withVirtualPoints,
@@ -110,4 +111,52 @@ test("dropped files go to the media panel, open as C3D, or are rejected", () => 
   expect(droppedFiles([f("WT01.c3d"), f("WT02.c3d")])).toBe("invalid");
   expect(droppedFiles([f("a_1.jpg"), f("WT01.c3d")])).toBe("invalid");
   expect(droppedFiles([f("notes.txt")])).toBe("invalid");
+});
+
+test("rail buttons toggle side panels; narrow windows show one at a time", () => {
+  const open = { library: true, inspector: true, tab: "info" };
+  // Wide: panels are independent.
+  expect(toggleSidePanel(open, "library", false)).toEqual({
+    ...open,
+    library: false,
+  });
+  expect(toggleSidePanel(open, "info", false)).toEqual({
+    ...open,
+    inspector: false,
+  });
+  expect(toggleSidePanel(open, "events", false)).toEqual({
+    ...open,
+    tab: "events",
+  });
+  const closed = { library: false, inspector: false, tab: "events" };
+  expect(toggleSidePanel(closed, "events", false)).toEqual({
+    library: false,
+    inspector: true,
+    tab: "events",
+  });
+  expect(toggleSidePanel(closed, "library", false)).toEqual({
+    ...closed,
+    library: true,
+  });
+  // Narrow: opening one overlay closes the other; closing leaves it alone.
+  const library = { library: true, inspector: false, tab: "info" };
+  expect(toggleSidePanel(library, "parameters", true)).toEqual({
+    library: false,
+    inspector: true,
+    tab: "parameters",
+  });
+  const inspector = { library: false, inspector: true, tab: "info" };
+  expect(toggleSidePanel(inspector, "library", true)).toEqual({
+    library: true,
+    inspector: false,
+    tab: "info",
+  });
+  expect(toggleSidePanel(inspector, "info", true)).toEqual({
+    ...inspector,
+    inspector: false,
+  });
+  expect(toggleSidePanel(library, "library", true)).toEqual({
+    ...library,
+    library: false,
+  });
 });

@@ -10,7 +10,8 @@ import {
 import { IconButton } from "./IconButton";
 import { usePreferences } from "./Preferences";
 
-// Left rail: show the file panel, open inspector tabs, settings and help.
+// Left rail: toggle the file panel or an inspector tab (see toggleSidePanel),
+// open settings and help.
 export const WorkspaceRail = memo(function WorkspaceRail({
   showLibrary,
   onToggleLibrary,

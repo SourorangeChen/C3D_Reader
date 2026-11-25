@@ -692,6 +692,47 @@ test("English narrow layouts keep drawers and settings accessible", async ({
   }
 });
 
+test("rail buttons toggle their panel and narrow windows show one drawer", async ({
+  page,
+}) => {
+  const library = page.getByRole("complementary", { name: "文件与通道" });
+  const inspector = page.getByRole("complementary", { name: "采集检查器" });
+  const info = page.getByRole("button", { name: "采集信息", exact: true });
+  const events = page.getByRole("button", { name: "事件列表", exact: true });
+  await expect(inspector).toBeVisible();
+  await expect(info).toHaveAttribute("aria-pressed", "true");
+  // Clicking the shown tab's button hides the inspector, clicking again shows it.
+  await info.click();
+  await expect(inspector).toBeHidden();
+  await expect(info).toHaveAttribute("aria-pressed", "false");
+  await info.click();
+  await expect(inspector).toBeVisible();
+  await events.click();
+  await expect(inspector).toBeVisible();
+  await expect(page.getByRole("tab", { name: "事件" })).toHaveAttribute(
+    "aria-selected",
+    "true",
+  );
+  await expect(library).toBeVisible();
+
+  // Narrow windows show the side panels as overlays, one at a time.
+  await page.setViewportSize({ width: 768, height: 900 });
+  await page.reload();
+  await expect(
+    page.getByRole("heading", { name: "Synthetic walking" }),
+  ).toBeVisible();
+  await expect(inspector).toBeHidden();
+  if (!(await library.isVisible()))
+    await page.getByRole("button", { name: "文件与通道", exact: true }).click();
+  await expect(library).toBeVisible();
+  await page.getByRole("button", { name: "C3D 参数", exact: true }).click();
+  await expect(inspector).toBeVisible();
+  await expect(library).toBeHidden();
+  await page.getByRole("button", { name: "文件与通道", exact: true }).click();
+  await expect(library).toBeVisible();
+  await expect(inspector).toBeHidden();
+});
+
 test("CSV defaults to all points and full recording, with optional ROI and selected channel", async ({
   page,
 }) => {

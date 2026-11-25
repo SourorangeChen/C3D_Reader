@@ -36,7 +36,13 @@ import { api } from "./types";
 import { desktop } from "./desktop";
 import type { Acquisition, Library, Selection } from "./types";
 import { errorMessage } from "./errors";
-import { defaultSelection, droppedFiles, selectedChannel } from "./workbench";
+import {
+  defaultSelection,
+  droppedFiles,
+  selectedChannel,
+  toggleSidePanel,
+  type SidePanels,
+} from "./workbench";
 import { usePlayback, usePlaybackClock } from "./usePlayback";
 import { useSceneOptions } from "./useSceneOptions";
 import { useParameters, useSeries } from "./useAcquisitionData";
@@ -45,6 +51,9 @@ import { useDialogFocus, usePlaybackShortcuts } from "./useShortcuts";
 const MediaPanel = lazy(() =>
   import("./MediaPanel").then((module) => ({ default: module.MediaPanel })),
 );
+
+// Side panels are overlays at this width (see style.css).
+const narrowWindow = () => window.matchMedia("(max-width: 1000px)").matches;
 
 export default function App() {
   const {
@@ -103,16 +112,21 @@ export default function App() {
   } = scene;
   const [tab, setTab] = useState("marker");
   const [search, setSearch] = useState("");
-  const [inspector, setInspector] = useState("info");
   const [loading, setLoading] = useState("");
   const [error, setError] = useState("");
   const [modal, setModal] = useState<AppModal | null>(null);
   const dialogRef = useRef<HTMLDivElement>(null);
   const [folder, setFolder] = useState("");
-  const [showLibrary, setShowLibrary] = useState(true);
-  const [showInspector, setShowInspector] = useState(
-    () => window.innerWidth >= 1000,
-  );
+  const [panels, setPanels] = useState<SidePanels>(() => ({
+    library: true,
+    inspector: !narrowWindow(),
+    tab: "info",
+  }));
+  const {
+    library: showLibrary,
+    inspector: showInspector,
+    tab: inspector,
+  } = panels;
   const loadVersion = useRef(0);
   const [desktopReady, setDesktopReady] = useState(false);
   const layout = preferences.layout;
@@ -149,8 +163,25 @@ export default function App() {
     unit: selectedUnit,
   } = selectedChannel(meta, selection);
   const clock = meta ? frame / meta.pointRate : 0;
-  const hideInspector = useCallback(() => setShowInspector(false), []);
-  const toggleInspector = useCallback(() => setShowInspector((v) => !v), []);
+  const hideInspector = useCallback(
+    () => setPanels((p) => ({ ...p, inspector: false })),
+    [],
+  );
+  const setInspector = useCallback(
+    (tab: string) => setPanels((p) => ({ ...p, tab })),
+    [],
+  );
+  // Rail buttons and the scene toolbar toggle a side panel.
+  const togglePanel = useCallback(
+    (target: string) =>
+      setPanels((p) => toggleSidePanel(p, target, narrowWindow())),
+    [],
+  );
+  const toggleLibrary = useCallback(() => togglePanel("library"), []);
+  const toggleInspector = useCallback(
+    () => setPanels((p) => toggleSidePanel(p, p.tab, narrowWindow())),
+    [],
+  );
   const seekSignal = (time: number) => {
     if (meta) {
       setPlaying(false);
@@ -170,7 +201,7 @@ export default function App() {
       setTab("marker");
       resetScene(data.points);
       setSelection(defaultSelection(data.points));
-      if (window.innerWidth < 1000) setShowLibrary(false);
+      if (narrowWindow()) setPanels((p) => ({ ...p, library: false }));
     },
     [resetPlayback, resetScene],
   );
@@ -251,11 +282,6 @@ export default function App() {
       .catch((e) => setError(errorMessage(e)));
   }, []);
   const showSettings = useCallback(() => setModal("settings"), []);
-  const toggleLibrary = useCallback(() => setShowLibrary((v) => !v), []);
-  const openInspector = useCallback((tab: string) => {
-    setShowInspector(true);
-    setInspector(tab);
-  }, []);
   const dropFiles = async (files: File[]) => {
     const kind = droppedFiles(files);
     if (!kind) return;
@@ -371,7 +397,7 @@ export default function App() {
           onToggleLibrary={toggleLibrary}
           showInspector={showInspector}
           inspector={inspector}
-          onInspector={openInspector}
+          onInspector={togglePanel}
           onSettings={showSettings}
           onHelp={showHelp}
         />

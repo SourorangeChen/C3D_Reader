@@ -124,3 +124,31 @@ export function droppedFiles(
     ? "c3d"
     : "invalid";
 }
+
+export type SidePanels = { library: boolean; inspector: boolean; tab: string };
+
+// Left-rail buttons toggle their panel: the file panel opens or closes, and an
+// inspector tab opens the inspector on that tab or, if already shown, closes
+// it. On narrow windows both panels are overlays, so opening one closes the
+// other.
+export function toggleSidePanel(
+  panels: SidePanels,
+  target: "library" | string,
+  narrow: boolean,
+): SidePanels {
+  if (target === "library") {
+    const library = !panels.library;
+    return {
+      ...panels,
+      library,
+      inspector: library && narrow ? false : panels.inspector,
+    };
+  }
+  if (panels.inspector && panels.tab === target)
+    return { ...panels, inspector: false };
+  return {
+    library: narrow ? false : panels.library,
+    inspector: true,
+    tab: target,
+  };
+}
