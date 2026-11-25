@@ -1,6 +1,6 @@
-import { test, expect } from "@playwright/test";
+import { test, expect } from "vitest";
 import { Vector3 } from "three";
-import { patientView } from "../frontend/src/patientView";
+import { patientView } from "../../frontend/src/patientView";
 
 function pose(entries: Record<string, number[]>) {
   return {

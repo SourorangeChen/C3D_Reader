@@ -1,4 +1,4 @@
-import { test, expect } from "@playwright/test";
+import { test, expect } from "vitest";
 import {
   commonRange,
   indexImages,
@@ -7,8 +7,8 @@ import {
   readImagePTS,
   readSignalCSV,
   timestampBaseline,
-} from "../frontend/src/synchronization";
-import type { Acquisition } from "../frontend/src/types";
+} from "../../frontend/src/synchronization";
+import type { Acquisition } from "../../frontend/src/types";
 
 const meta = {
   name: "WT01.c3d",

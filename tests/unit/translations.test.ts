@@ -1,7 +1,7 @@
-import { test, expect } from "@playwright/test";
+import { test, expect } from "vitest";
 import { readdirSync, readFileSync } from "node:fs";
 import path from "node:path";
-import { english } from "../frontend/src/translations";
+import { english } from "../../frontend/src/translations";
 
 // Interface copy is written in Chinese and looked up in `english`. Any Chinese
 // string literal in the frontend must therefore have an English entry, or the

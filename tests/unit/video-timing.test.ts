@@ -1,5 +1,5 @@
-import { test, expect } from "@playwright/test";
-import { frameAtTime, readVideoTimes } from "../frontend/src/videoTiming";
+import { test, expect } from "vitest";
+import { frameAtTime, readVideoTimes } from "../../frontend/src/videoTiming";
 
 test("frame lookup uses presentation intervals instead of a nominal frame rate", () => {
   const times = [0, 0.04, 0.16, 0.18, 0.26];

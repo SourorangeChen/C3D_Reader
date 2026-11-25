@@ -1,10 +1,10 @@
-import { test, expect } from "@playwright/test";
+import { test, expect } from "vitest";
 import {
   chineseError,
   DESKTOP_ERROR_MARKER,
   errorMessage,
   localizedError,
-} from "../frontend/src/errors";
+} from "../../frontend/src/errors";
 
 test("coded errors render in both languages with parameters", () => {
   const english = localizedError("channel_count_invalid", { maximum: 8 }, "x");

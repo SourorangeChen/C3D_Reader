@@ -16,6 +16,8 @@
     "frontend/src",
     "vite.config.ts",
     "tests/*.ts",
+    "tests/unit/*.ts",
+    "vitest.config.ts",
     "playwright.config.ts"
   ]
 }
