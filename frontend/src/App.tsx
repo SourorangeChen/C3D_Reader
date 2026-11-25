@@ -1,7 +1,6 @@
 import { usePreferences } from "./Preferences";
 import { defaultLayout } from "./Preferences";
 import { PanelDivider } from "./PanelDivider";
-import { IconButton } from "./IconButton";
 import { AppHeader } from "./AppHeader";
 import { WorkspaceRail } from "./WorkspaceRail";
 import { FilePanel } from "./FilePanel";
@@ -32,19 +31,16 @@ import {
   disposeMediaSession,
 } from "./mediaSession";
 import {
-  Activity,
-  Box,
   ChevronRight,
   Download,
   File,
   Film,
   Info,
-  Maximize2,
   RefreshCw,
   X,
 } from "lucide-react";
-import { Viewer } from "./Viewer";
-import { SignalPlot } from "./SignalPlot";
+import { ScenePanel } from "./ScenePanel";
+import { SignalPanel } from "./SignalPanel";
 import { useFrames } from "./useFrames";
 import { api, formatBytes } from "./types";
 import { desktop } from "./desktop";
@@ -119,7 +115,6 @@ export default function App() {
   const [tab, setTab] = useState("marker");
   const [search, setSearch] = useState("");
   const [inspector, setInspector] = useState("info");
-  const [axes, setAxes] = useState([true, true, true]);
   const [loading, setLoading] = useState("");
   const [error, setError] = useState("");
   const [modal, setModal] = useState<
@@ -170,6 +165,13 @@ export default function App() {
   } = selectedChannel(meta, selection);
   const clock = meta ? frame / meta.pointRate : 0;
   const hideInspector = useCallback(() => setShowInspector(false), []);
+  const toggleInspector = useCallback(() => setShowInspector((v) => !v), []);
+  const seekSignal = (time: number) => {
+    if (meta) {
+      setPlaying(false);
+      seek(Math.round(time * meta.pointRate));
+    }
+  };
   const { reset: resetPlayback } = playback;
   const { reset: resetScene } = scene;
   const applyAcquisition = useCallback(
@@ -557,87 +559,19 @@ export default function App() {
           <div
             className={`visual-panels ${showMedia && mediaExpanded ? "media-expanded" : ""}`}
           >
-            <section
-              className={`scene-panel ${showMedia ? "with-media" : ""}`}
-              aria-label={t("三维视图")}
-            >
-              <div className="scene-toolbar">
-                <div className="toolbar-group">
-                  <Box size={14} />
-                  <select
-                    aria-label={t("视角")}
-                    value={view}
-                    onChange={(e) => setView(e.target.value)}
-                  >
-                    <option value="perspective">{t("透视视图")}</option>
-                    <option value="front">{t("正面视图")}</option>
-                    <option value="side">{t("侧面视图")}</option>
-                    <option value="top">{t("俯视视图")}</option>
-                  </select>
-                </div>
-                <div className="toolbar-toggles">
-                  <button
-                    className={segments ? "active" : ""}
-                    aria-pressed={segments}
-                    onClick={() => setSegments((v) => !v)}
-                  >
-                    {t("连线")}
-                  </button>
-                  <button
-                    className={trails ? "active" : ""}
-                    aria-pressed={trails}
-                    onClick={() => setTrails((v) => !v)}
-                  >
-                    {t("轨迹")}
-                  </button>
-                  <button
-                    className={labels ? "active" : ""}
-                    aria-pressed={labels}
-                    onClick={() => setLabels((v) => !v)}
-                  >
-                    {t("标签")}
-                  </button>
-                  <select
-                    aria-label={t("地面向上轴")}
-                    value={up}
-                    onChange={(e) => setUp(e.target.value as "Z" | "Y")}
-                  >
-                    <option value="Z">Z ↑</option>
-                    <option value="Y">Y ↑</option>
-                  </select>
-                  <IconButton
-                    label={t("切换信息面板")}
-                    onClick={() => setShowInspector((v) => !v)}
-                  >
-                    <Maximize2 size={13} />
-                  </IconButton>
-                </div>
-              </div>
-              <div
-                className={`scene-content ${showMedia && meta ? "has-media" : ""}`}
-              >
-                {meta ? (
-                  <Viewer
-                    meta={meta}
-                    frame={frame}
-                    points={points}
-                    selected={
-                      currentPoint?.kind === "marker" ? selection.id : null
-                    }
-                    hidden={hidden}
-                    segments={segments}
-                    trails={trails && !sourceChanged}
-                    labels={labels}
-                    view={view}
-                    up={up}
-                    onSelect={pickPoint}
-                  />
-                ) : (
-                  <div className="viewer-placeholder">
-                    {t("选择一个 C3D 文件开始查看")}
-                  </div>
-                )}
-                {showMedia && meta && (
+            <ScenePanel
+              meta={meta}
+              frame={frame}
+              points={points}
+              selected={currentPoint?.kind === "marker" ? selection.id : null}
+              scene={scene}
+              sourceChanged={sourceChanged}
+              showMedia={showMedia}
+              onPick={pickPoint}
+              onToggleInspector={toggleInspector}
+              media={
+                showMedia &&
+                meta && (
                   <Suspense
                     fallback={
                       <div className="media-loading">
@@ -682,25 +616,9 @@ export default function App() {
                       }}
                     />
                   </Suspense>
-                )}
-              </div>
-              <div className="scene-legend">
-                <span>
-                  <i className="dot left" />
-                  {t("左侧标记点")}
-                </span>
-                <span>
-                  <i className="dot right" />
-                  {t("右侧 / 其他")}
-                </span>
-                <span className="scene-footnote">
-                  {meta?.plates.length
-                    ? t("{0} 块力台轮廓 · ", [meta.plates.length])
-                    : ""}
-                  {t("连线为标签推断")}
-                </span>
-              </div>
-            </section>
+                )
+              }
+            />
             <PanelDivider
               label={t("调整三维与曲线区域")}
               orientation="horizontal"
@@ -710,71 +628,16 @@ export default function App() {
               onChange={(value) => resizePanel("scene", value)}
               onReset={() => resizePanel("scene", defaultLayout.scene)}
             />
-            <section className="signal-panel">
-              <div className="signal-heading">
-                <div>
-                  <Activity size={14} />
-                  <h2>{selectedLabel || t("信号曲线")}</h2>
-                  <span>{selectedUnit || t("无单位")}</span>
-                </div>
-                <div className="axis-controls">
-                  {selection.kind === "point" ? (
-                    ["X", "Y", "Z"].map((a, i) => (
-                      <button
-                        key={a}
-                        className={axes[i] ? "active" : ""}
-                        aria-pressed={axes[i]}
-                        style={
-                          {
-                            "--axis-color": [
-                              "var(--signal-x)",
-                              "var(--signal-y)",
-                              "var(--signal-z)",
-                            ][i],
-                          } as React.CSSProperties
-                        }
-                        onClick={() =>
-                          setAxes((old) =>
-                            old.map((v, j) => (j === i ? !v : v)),
-                          )
-                        }
-                      >
-                        <i />
-                        {a}
-                      </button>
-                    ))
-                  ) : (
-                    <span>{series?.sampleRate} Hz</span>
-                  )}
-                </div>
-              </div>
-              {seriesError ? (
-                <div className="chart-error" role="alert">
-                  {t(seriesError)}
-                </div>
-              ) : (
-                <SignalPlot
-                  data={series}
-                  time={clock}
-                  axes={selection.kind === "point" ? axes : [true, true, true]}
-                  events={meta?.events || []}
-                  onSeek={(time) => {
-                    if (meta) {
-                      setPlaying(false);
-                      seek(Math.round(time * meta.pointRate));
-                    }
-                  }}
-                />
-              )}
-              <div className="signal-footer">
-                <span>{t("点击曲线定位帧")}</span>
-                <span>
-                  {series?.method === "min-max envelope"
-                    ? t("保留极值的显示抽样 · CSV 保留全部采样点")
-                    : ""}
-                </span>
-              </div>
-            </section>
+            <SignalPanel
+              meta={meta}
+              selection={selection}
+              label={selectedLabel}
+              unit={selectedUnit}
+              series={series}
+              error={seriesError}
+              time={clock}
+              onSeek={seekSignal}
+            />
           </div>
           <TimelinePanel
             meta={meta}
