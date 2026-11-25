@@ -68,6 +68,7 @@ def collect_licenses():
         "react-dom",
         "three",
         "lucide-react",
+        "mediabunny",
         "@fontsource/public-sans",
         "@fontsource/ibm-plex-mono",
         "electron",
@@ -81,6 +82,12 @@ def collect_licenses():
     shutil.copy2(
         ROOT / "node_modules/electron/dist/LICENSES.chromium.html",
         output / "Chromium-LICENSES.html",
+    )
+    media_package = json.loads((ROOT / "node_modules/mediabunny/package.json").read_text())
+    media_version = media_package["version"]
+    (output / "javascript/mediabunny/SOURCE.txt").write_text(
+        f"Mediabunny {media_version}, unmodified upstream source (MPL-2.0):\n"
+        f"https://registry.npmjs.org/mediabunny/-/mediabunny-{media_version}.tgz\n"
     )
 
 

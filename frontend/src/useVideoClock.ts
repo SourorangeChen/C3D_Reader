@@ -15,6 +15,7 @@ type Options = {
   range: [number, number] | null;
   offset: number;
   origin: number;
+  pausedMediaTime?: number;
   onFrame: (frame: number) => void;
   onPlaying: (playing: boolean) => void;
   onError: (message: string) => void;
@@ -35,6 +36,7 @@ export function useVideoClock(options: Options) {
     range,
     offset,
     origin,
+    pausedMediaTime,
   } = options;
 
   // Paused C3D stepping seeks the media; while playing, only the media clock
@@ -43,14 +45,24 @@ export function useVideoClock(options: Options) {
     const element = video.current;
     if (!element || !enabled || !ready || playing) return;
     element.pause();
-    const target = offset + frame / meta.pointRate - origin;
+    const target = pausedMediaTime ?? offset + frame / meta.pointRate - origin;
     if (
       target >= 0 &&
       target < element.duration &&
       Math.abs(element.currentTime - target) > 0.00001
     )
       element.currentTime = target;
-  }, [video, enabled, ready, frame, playing, meta.pointRate, offset, origin]);
+  }, [
+    video,
+    enabled,
+    ready,
+    frame,
+    playing,
+    meta.pointRate,
+    offset,
+    origin,
+    pausedMediaTime,
+  ]);
 
   useEffect(() => {
     const element = video.current;

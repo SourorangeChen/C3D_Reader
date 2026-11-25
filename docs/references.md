@@ -24,6 +24,7 @@ Research used the public website and ordinary source inspection. The installed r
 | React / React DOM             | MIT                | Workbench UI                      |
 | Three.js                      | MIT                | 3D rendering and orbit controls   |
 | Lucide                        | ISC                | Interface icons                   |
+| [Mediabunny](https://mediabunny.dev/) | MPL-2.0 | Local video presentation timestamps and frame indexing |
 | Public Sans / IBM Plex Mono   | SIL OFL 1.1        | Locally bundled fonts             |
 
 The packages retain their upstream license files in their installed distributions. Build and test tools have their own upstream licenses. The application source is independently licensed under MIT.
