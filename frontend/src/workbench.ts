@@ -1,4 +1,5 @@
 import { isVirtual } from "./types";
+import { isImage, isVideo } from "./synchronization";
 import type { Acquisition, Point, Selection } from "./types";
 
 export type FrameRange = [number, number];
@@ -109,4 +110,17 @@ export function selectedChannel(
     label: point?.label || analog?.label || "",
     unit: point?.unit || analog?.unit || "",
   };
+}
+
+// What a set of files dropped on the window is: one video or an image
+// sequence for the media panel, a single C3D to open, or neither.
+export function droppedFiles(
+  files: File[],
+): "media" | "c3d" | "invalid" | null {
+  if (!files.length) return null;
+  if ((files.length === 1 && isVideo(files[0])) || files.every(isImage))
+    return "media";
+  return files.length === 1 && /\.c3d$/i.test(files[0].name)
+    ? "c3d"
+    : "invalid";
 }

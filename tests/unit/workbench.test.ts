@@ -3,6 +3,7 @@ import type { Acquisition, Point } from "../../frontend/src/types";
 import {
   channelLists,
   defaultSelection,
+  droppedFiles,
   observationRange,
   playbackFrame,
   toggled,
@@ -97,4 +98,16 @@ test("channel lists filter by tab, virtual points and search", () => {
     channelLists(meta, "marker", false, "fz").analogs.map((p) => p.label),
   ).toEqual(["Force.Fz"]);
   expect(channelLists(null, "marker", false, "").points).toEqual([]);
+});
+
+test("dropped files go to the media panel, open as C3D, or are rejected", () => {
+  const f = (name: string) => new File([], name);
+  expect(droppedFiles([])).toBeNull();
+  expect(droppedFiles([f("walk.MOV")])).toBe("media");
+  expect(droppedFiles([f("a_1.jpg"), f("a_2.png")])).toBe("media");
+  expect(droppedFiles([f("WT01.C3D")])).toBe("c3d");
+  expect(droppedFiles([f("a.mp4"), f("b.mp4")])).toBe("invalid");
+  expect(droppedFiles([f("WT01.c3d"), f("WT02.c3d")])).toBe("invalid");
+  expect(droppedFiles([f("a_1.jpg"), f("WT01.c3d")])).toBe("invalid");
+  expect(droppedFiles([f("notes.txt")])).toBe("invalid");
 });

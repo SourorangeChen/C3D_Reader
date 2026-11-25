@@ -8,11 +8,9 @@ import { ChannelPanel } from "./ChannelPanel";
 import { TimelinePanel } from "./TimelinePanel";
 import { InspectorPanel } from "./InspectorPanel";
 import { StatusBar } from "./StatusBar";
-import { SettingsPanel } from "./SettingsPanel";
-import { FolderForm } from "./FolderForm";
-import { HelpContent } from "./HelpContent";
-import { BatchExportDialog } from "./BatchExportDialog";
-import { ExportOptions } from "./ExportOptions";
+import { AppDialogs, type AppModal } from "./AppDialogs";
+import { ErrorBanner, TrialHeader } from "./TrialHeader";
+import { FileDropOverlay, useFileDrop } from "./FileDrop";
 import {
   lazy,
   Suspense,
@@ -23,36 +21,27 @@ import {
   useSyncExternalStore,
 } from "react";
 import { subscribeTraining } from "./trainingSession";
-import { EMPTY_CLOCK, isImage, isVideo } from "./synchronization";
+import { EMPTY_CLOCK } from "./synchronization";
 import type { MediaClock } from "./synchronization";
 import {
   acquisitionKey,
   createMediaSession,
   disposeMediaSession,
 } from "./mediaSession";
-import {
-  ChevronRight,
-  Download,
-  File,
-  Film,
-  Info,
-  RefreshCw,
-  X,
-} from "lucide-react";
+import { Info } from "lucide-react";
 import { ScenePanel } from "./ScenePanel";
 import { SignalPanel } from "./SignalPanel";
 import { useFrames } from "./useFrames";
-import { api, formatBytes } from "./types";
+import { api } from "./types";
 import { desktop } from "./desktop";
 import type { Acquisition, Library, Selection } from "./types";
 import { errorMessage } from "./errors";
-import { defaultSelection, selectedChannel } from "./workbench";
+import { defaultSelection, droppedFiles, selectedChannel } from "./workbench";
 import { usePlayback, usePlaybackClock } from "./usePlayback";
 import { useSceneOptions } from "./useSceneOptions";
 import { useParameters, useSeries } from "./useAcquisitionData";
 import { useDialogFocus, usePlaybackShortcuts } from "./useShortcuts";
 
-const countFormat = new Intl.NumberFormat("en");
 const MediaPanel = lazy(() =>
   import("./MediaPanel").then((module) => ({ default: module.MediaPanel })),
 );
@@ -117,9 +106,7 @@ export default function App() {
   const [inspector, setInspector] = useState("info");
   const [loading, setLoading] = useState("");
   const [error, setError] = useState("");
-  const [modal, setModal] = useState<
-    "folder" | "help" | "export" | "settings" | "batch" | null
-  >(null);
+  const [modal, setModal] = useState<AppModal | null>(null);
   const dialogRef = useRef<HTMLDivElement>(null);
   const [folder, setFolder] = useState("");
   const [showLibrary, setShowLibrary] = useState(true);
@@ -127,8 +114,6 @@ export default function App() {
     () => window.innerWidth >= 1000,
   );
   const loadVersion = useRef(0);
-  const dragDepth = useRef(0);
-  const [dragging, setDragging] = useState(false);
   const [desktopReady, setDesktopReady] = useState(false);
   const layout = preferences.layout;
   const resizePanel = (key: keyof typeof layout, value: number) =>
@@ -271,19 +256,16 @@ export default function App() {
     setShowInspector(true);
     setInspector(tab);
   }, []);
-  const dropFiles = async (event: React.DragEvent) => {
-    event.preventDefault();
-    dragDepth.current = 0;
-    setDragging(false);
-    const files = [...event.dataTransfer.files];
-    if (!files.length) return;
-    if ((files.length === 1 && isVideo(files[0])) || files.every(isImage)) {
+  const dropFiles = async (files: File[]) => {
+    const kind = droppedFiles(files);
+    if (!kind) return;
+    if (kind === "media") {
       setPlaying(false);
       setIncomingMedia(files);
       setShowMedia(true);
       return;
     }
-    if (files.length !== 1 || !/\.c3d$/i.test(files[0].name)) {
+    if (kind === "invalid") {
       setError(t("请一次拖入一个 .c3d 文件。"));
       return;
     }
@@ -301,6 +283,18 @@ export default function App() {
     } finally {
       setLoading("");
     }
+  };
+  const fileDrop = useFileDrop((files) => void dropFiles(files));
+  const toggleMedia = useCallback(() => {
+    setPlaying(false);
+    setShowMedia((value) => !value);
+    setMediaClock(EMPTY_CLOCK);
+  }, [setPlaying]);
+  const showExport = useCallback(() => setModal("export"), []);
+  const recoverFrames = () => {
+    setPlaying(false);
+    if (frameError?.action === "reopen" && meta) void openFile(meta.id);
+    else retryFrames();
   };
   const togglePlay = useCallback(() => {
     if (frameError?.action === "reopen") return;
@@ -361,41 +355,9 @@ export default function App() {
           "--signal-share": `${1 - layout.scene}fr`,
         } as React.CSSProperties
       }
-      onDragEnter={(event) => {
-        if (event.dataTransfer.types.includes("Files")) {
-          event.preventDefault();
-          dragDepth.current++;
-          setDragging(true);
-        }
-      }}
-      onDragOver={(event) => {
-        if (event.dataTransfer.types.includes("Files")) {
-          event.preventDefault();
-          event.dataTransfer.dropEffect = "copy";
-        }
-      }}
-      onDragLeave={(event) => {
-        event.preventDefault();
-        if (--dragDepth.current <= 0) {
-          dragDepth.current = 0;
-          setDragging(false);
-        }
-      }}
-      onDrop={dropFiles}
+      {...fileDrop.handlers}
     >
-      {dragging && (
-        <div className="file-drop-overlay" role="status">
-          <div>
-            <File size={34} />
-            <h2>{t("松开以导入文件")}</h2>
-            <p>
-              {desktop
-                ? t("直接读取本机文件，支持大型采集")
-                : t("支持视频或编号图片序列；C3D 拖放请使用桌面版")}
-            </p>
-          </div>
-        </div>
-      )}
+      {fileDrop.dragging && <FileDropOverlay />}
       <AppHeader
         openNativeFile={openNativeFile}
         openFolder={openFolder}
@@ -453,107 +415,21 @@ export default function App() {
           </div>
         </aside>
         <main className="workspace">
-          <div className="trial-header">
-            <div className="trial-title">
-              <div className="breadcrumb">
-                <span>{t("采集")}</span>
-                <ChevronRight size={12} />
-                <span>
-                  {meta?.id === "demo"
-                    ? t("合成示例")
-                    : meta?.manufacturer || "C3D"}
-                </span>
-              </div>
-              <h1>
-                {meta?.id === "demo"
-                  ? "Synthetic walking"
-                  : meta?.name || "C3D Reader"}
-              </h1>
-            </div>
-            <div className="trial-actions">
-              <button
-                className={`button ${showMedia ? "active" : ""}`}
-                disabled={!meta}
-                aria-pressed={showMedia}
-                onClick={() => {
-                  setPlaying(false);
-                  setShowMedia((value) => !value);
-                  setMediaClock(EMPTY_CLOCK);
-                }}
-              >
-                <Film size={14} />
-                {t("视频同步")}
-              </button>
-              <button
-                className="button primary export-button"
-                disabled={!meta || sourceChanged}
-                onClick={() => setModal("export")}
-              >
-                <Download size={14} />
-                <span>{t("导出 CSV")}</span>
-              </button>
-            </div>
-          </div>
-          <div className="trial-stats">
-            <span>
-              <strong>
-                {meta ? countFormat.format(meta.frameCount) : "—"}
-              </strong>
-              {t("帧")}
-            </span>
-            <span>
-              <strong>{meta?.pointRate ?? "—"}</strong>
-              {t("Hz 标记点")}
-            </span>
-            <span>
-              <strong>
-                {meta ? countFormat.format(meta.analogRate) : "—"}
-              </strong>
-              {t("Hz 模拟信号")}
-            </span>
-            <span>
-              <strong>{meta?.duration.toFixed(2) ?? "—"}</strong>
-              {t("s 时长")}
-            </span>
-            <span className="storage-note">
-              {meta?.id === "demo"
-                ? t("合成数据")
-                : meta
-                  ? t("{0} · 分块读取", [formatBytes(meta.size)])
-                  : ""}
-            </span>
-          </div>
+          <TrialHeader
+            meta={meta}
+            showMedia={showMedia}
+            sourceChanged={sourceChanged}
+            onToggleMedia={toggleMedia}
+            onExport={showExport}
+          />
           {(error || frameError) && !modal && (
-            <div className="error-banner" role="alert">
-              <span>{t(error || frameError?.message || "")}</span>
-              {error ? (
-                <button
-                  className="icon-button"
-                  aria-label={t("关闭错误提示")}
-                  onClick={() => setError("")}
-                >
-                  <X size={14} />
-                </button>
-              ) : frameError ? (
-                <button
-                  className="button"
-                  disabled={!!loading}
-                  onClick={() => {
-                    setPlaying(false);
-                    if (frameError.action === "reopen" && meta)
-                      void openFile(meta.id);
-                    else retryFrames();
-                  }}
-                >
-                  <RefreshCw size={13} />
-                  {t(
-                    frameError.action === "reopen"
-                      ? "重新打开文件"
-                      : "重试读取",
-                  )}
-                </button>
-              ) : null}
-            </div>
+            <ErrorBanner
+              error={error}
+              frameError={frameError}
+              loading={!!loading}
+              onDismiss={() => setError("")}
+              onRecover={recoverFrames}
+            />
           )}
           <div className="comparison-toolbar-host" ref={setComparisonHost} />
           <div
@@ -680,71 +556,20 @@ export default function App() {
         demo={meta?.id === "demo"}
         name={meta?.name}
       />
-      <BatchExportDialog
-        visible={modal === "batch"}
-        fileCount={library?.files.length || 0}
-        onClose={() => setModal(null)}
+      <AppDialogs
+        modal={modal}
+        onClose={closeModal}
         dialogRef={dialogRef}
+        fileCount={library?.files.length || 0}
+        folder={folder}
+        setFolder={setFolder}
+        onSaveFolder={saveFolder}
+        error={error}
+        loading={loading}
+        meta={meta}
+        selection={selection}
+        roi={roi}
       />
-      {modal && modal !== "batch" && (
-        <div
-          className="modal-backdrop"
-          onPointerDown={(e) => {
-            if (e.target === e.currentTarget) setModal(null);
-          }}
-        >
-          <div
-            className="modal"
-            ref={dialogRef}
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="dialog-title"
-          >
-            <div className="modal-title">
-              <h2 id="dialog-title">
-                {modal === "folder"
-                  ? t("打开本地数据文件夹")
-                  : modal === "settings"
-                    ? t("设置")
-                    : modal === "export"
-                      ? t("导出信号数据")
-                      : t("C3D Reader 使用帮助")}
-              </h2>
-              <button
-                className="icon-button"
-                aria-label={t("关闭窗口")}
-                onClick={() => setModal(null)}
-              >
-                <X size={17} />
-              </button>
-            </div>
-            {modal === "settings" && (
-              <>
-                <SettingsPanel onClose={closeModal} />
-              </>
-            )}
-            {modal === "folder" && (
-              <FolderForm
-                folder={folder}
-                setFolder={setFolder}
-                onSubmit={saveFolder}
-                error={error}
-                loading={loading}
-                onClose={closeModal}
-              />
-            )}
-            {modal === "export" && meta && (
-              <ExportOptions
-                meta={meta}
-                selection={selection}
-                roi={roi}
-                onClose={() => setModal(null)}
-              />
-            )}
-            {modal === "help" && <HelpContent onClose={closeModal} />}
-          </div>
-        </div>
-      )}
     </div>
   );
 }
