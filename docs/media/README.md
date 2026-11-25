@@ -30,7 +30,7 @@ npm run build
 FFMPEG_BINARY=/path/to/ffmpeg node scripts/readme-media.mjs --desktop
 ```
 
-The script uses the project's `.venv/bin/python` and existing Python dependencies.
+The script uses the `c3d-reader` Conda environment and its existing Python dependencies. Set `C3D_READER_PYTHON` to use an explicit interpreter.
 FFmpeg is only a media-authoring dependency; it is not required by C3D Reader.
 Intermediate recordings are written to the ignored `.local/readme-media/`
 directory. Generated images, GIF and MP4 are intended for publication and tracked

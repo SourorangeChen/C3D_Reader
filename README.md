@@ -66,7 +66,7 @@ cd C3D_Reader
 python3 run.py
 ```
 
-启动器会创建项目内的 `.venv`、安装 Python 依赖、构建前端并打开 [http://127.0.0.1:8000](http://127.0.0.1:8000)。在界面点击「打开文件夹」，粘贴包含 `.c3d` 文件的文件夹路径。macOS 可在 Finder 选中文件夹，按 **⌥⌘C** 复制路径。
+先按下方「开发与测试」步骤创建 `c3d-reader` Conda 环境。启动器会使用该环境、按需安装 Python 依赖、构建前端并打开 [http://127.0.0.1:8000](http://127.0.0.1:8000)。在界面点击「打开文件夹」，粘贴包含 `.c3d` 文件的文件夹路径。macOS 可在 Finder 选中文件夹，按 **⌥⌘C** 复制路径。
 
 源码版 macOS 也可双击 `Start C3D Reader.command`；Windows 可运行 `start.bat`（须已安装 Python 和 Node.js）。
 
@@ -142,8 +142,8 @@ COM 从源 C3D 原样读取，识别 `CentreOfMass`、`CenterOfMass`、`COM` 及
 ## 开发与测试
 
 ```sh
-python3 -m venv .venv
-source .venv/bin/activate           # Windows: .venv\Scripts\activate
+conda create -n c3d-reader python=3.9 pip
+conda activate c3d-reader
 pip install -r requirements-dev.txt
 npm ci
 python -m pytest -q
@@ -168,8 +168,9 @@ npm run dev
 在 Apple Silicon Mac 上运行，需 Python、Node.js 和 Xcode Command Line Tools：
 
 ```sh
-python3 -m venv .venv
-.venv/bin/pip install -r requirements-desktop.txt -r requirements-dev.txt
+conda create -n c3d-reader python=3.9 pip
+conda activate c3d-reader
+python -m pip install -r requirements-desktop.txt -r requirements-dev.txt
 npm ci
 npm run desktop:build
 npm run test:desktop

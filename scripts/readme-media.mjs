@@ -8,6 +8,7 @@ import { spawn, spawnSync } from "node:child_process";
 import { mkdir, mkdtemp, readFile, writeFile } from "node:fs/promises";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import pythonRuntime from "./python-runtime.cjs";
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const scratch = join(root, ".local/readme-media");
@@ -33,7 +34,7 @@ await writeFile(
   JSON.stringify({ folder: dataFolder }),
 );
 const server = spawn(
-  join(root, ".venv/bin/python"),
+  pythonRuntime.resolvePython(),
   ["-m", "uvicorn", "backend.app:app", "--host", "127.0.0.1", "--port", "8013"],
   {
     cwd: root,

@@ -174,10 +174,9 @@ function launchService() {
     flags: "a",
   });
   const packaged = path.join(process.resourcesPath, "backend", "c3d-service");
-  const python =
-    process.env.C3D_READER_PYTHON || path.join(root, ".venv", "bin", "python");
-  if (!app.isPackaged && !existsSync(python))
-    throw new Error("开发环境缺少 .venv，请先安装 Python 依赖。");
+  const python = app.isPackaged
+    ? null
+    : require("../scripts/python-runtime.cjs").resolvePython();
   service = spawn(
     app.isPackaged ? packaged : python,
     app.isPackaged ? [] : [path.join(root, "desktop", "server.py")],

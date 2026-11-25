@@ -66,7 +66,7 @@ cd C3D_Reader
 python3 run.py
 ```
 
-The launcher creates a project-local `.venv`, installs Python dependencies, builds the frontend, and opens [http://127.0.0.1:8000](http://127.0.0.1:8000). Click **打开文件夹 (Open folder)** and paste the path to a folder containing `.c3d` files. On macOS, select a folder in Finder and press **⌥⌘C** to copy its path.
+First create the `c3d-reader` Conda environment as described under development below. The launcher uses that environment, installs missing Python dependencies, builds the frontend, and opens [http://127.0.0.1:8000](http://127.0.0.1:8000). Click **打开文件夹 (Open folder)** and paste the path to a folder containing `.c3d` files. On macOS, select a folder in Finder and press **⌥⌘C** to copy its path.
 
 From a source checkout on macOS, you can also double-click `Start C3D Reader.command`. On Windows, run `start.bat` after installing Python and Node.js.
 
@@ -142,8 +142,8 @@ Use the local service only on your own trusted device. It has no multi-user auth
 ## Development and testing
 
 ```sh
-python3 -m venv .venv
-source .venv/bin/activate           # Windows: .venv\Scripts\activate
+conda create -n c3d-reader python=3.9 pip
+conda activate c3d-reader
 pip install -r requirements-dev.txt
 npm ci
 python -m pytest -q
@@ -168,8 +168,9 @@ Project structure: `backend/acquisition.py` handles C3D data and scaling, while 
 Build on an Apple Silicon Mac with Python, Node.js and Xcode Command Line Tools installed:
 
 ```sh
-python3 -m venv .venv
-.venv/bin/pip install -r requirements-desktop.txt -r requirements-dev.txt
+conda create -n c3d-reader python=3.9 pip
+conda activate c3d-reader
+python -m pip install -r requirements-desktop.txt -r requirements-dev.txt
 npm ci
 npm run desktop:build
 npm run test:desktop

@@ -1,3 +1,4 @@
+import { resolvePython } from "../python-runtime";
 import {
   test,
   expect,
@@ -18,7 +19,7 @@ let application: ElectronApplication,
 test.beforeEach(async () => {
   folder = await mkdtemp(path.join(tmpdir(), "c3d-desktop-"));
   fixture = path.join(folder, "拖入 文件.C3D");
-  execFileSync(path.resolve(".venv/bin/python"), [
+  execFileSync(resolvePython(), [
     "-c",
     `from backend.demo import create_demo; import sys; create_demo(sys.argv[1])`,
     fixture,
@@ -241,7 +242,7 @@ test("desktop folder export uses the native download flow", async () => {
       }
     })
     .toBe("504b0506");
-  execFileSync(path.resolve(".venv/bin/python"), [
+  execFileSync(resolvePython(), [
     "-c",
     `
 import csv, io, json, sys, zipfile
@@ -260,7 +261,7 @@ with zipfile.ZipFile(sys.argv[1]) as archive:
 
 test("native CSV download includes every point and source COM by default", async () => {
   const comFixture = path.join(folder, "synthetic-com.c3d");
-  execFileSync(path.resolve(".venv/bin/python"), [
+  execFileSync(resolvePython(), [
     "-c",
     "from backend.demo import create_demo; import sys; create_demo(sys.argv[1], include_com=True)",
     comFixture,

@@ -1,3 +1,4 @@
+import { resolvePython } from "./python-runtime";
 import { test, expect } from "@playwright/test";
 
 test.beforeEach(async ({ page }) => {
@@ -519,7 +520,7 @@ test("folder export includes files hidden by search and downloads a ZIP", async 
   const path = await import("node:path");
   const folder = await mkdtemp(path.join(tmpdir(), "c3d-batch-browser-"));
   try {
-    execFileSync(process.env.CI ? "python3" : ".venv/bin/python", [
+    execFileSync(resolvePython(), [
       "-c",
       "from backend.demo import create_demo; import sys; from pathlib import Path; p=Path(sys.argv[1]); create_demo(p/'合成 walking.C3D'); create_demo(p/'second.c3d')",
       folder,
@@ -641,7 +642,7 @@ test("source COM and floor projection are visible and exportable, including Engl
   const path = await import("node:path");
   const folder = await mkdtemp(path.join(tmpdir(), "c3d-com-browser-"));
   try {
-    execFileSync(process.env.CI ? "python3" : ".venv/bin/python", [
+    execFileSync(resolvePython(), [
       "-c",
       "from backend.demo import create_demo; import sys; from pathlib import Path; create_demo(Path(sys.argv[1])/'synthetic-com.c3d', include_com=True)",
       folder,

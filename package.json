@@ -10,7 +10,7 @@
     "typecheck": "tsc --noEmit",
     "format": "prettier --write frontend/src vite.config.ts tsconfig.json playwright.config.ts tests/viewer.spec.ts",
     "desktop:dev": "electron .",
-    "desktop:build": ".venv/bin/python scripts/build_macos.py",
+    "desktop:build": "node scripts/python-runtime.cjs scripts/build_macos.py",
     "test:desktop": "playwright test --config playwright.desktop.config.ts"
   },
   "keywords": [],

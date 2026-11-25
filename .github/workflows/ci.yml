@@ -5,6 +5,7 @@ jobs:
     runs-on: ubuntu-latest
     env:
       ELECTRON_SKIP_BINARY_DOWNLOAD: "1"
+      C3D_READER_PYTHON: python
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -22,6 +23,8 @@ jobs:
       - run: npm test
   macos-desktop:
     runs-on: macos-14
+    env:
+      C3D_READER_PYTHON: python
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -31,10 +34,9 @@ jobs:
         with:
           node-version: "24"
           cache: npm
-      - run: python -m venv .venv
-      - run: .venv/bin/pip install -r requirements-desktop.txt -r requirements-dev.txt
+      - run: python -m pip install -r requirements-desktop.txt -r requirements-dev.txt
       - run: npm ci
-      - run: .venv/bin/python -m pytest tests/test_package_privacy.py -q
+      - run: python -m pytest tests/test_package_privacy.py -q
       - run: npm run desktop:build
       - run: npm run test:desktop
       - run: C3D_TEST_APP="$PWD/release/mac-arm64/C3D Reader.app/Contents/MacOS/C3D Reader" npm run test:desktop

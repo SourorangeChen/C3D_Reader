@@ -10,9 +10,10 @@ import sys
 import threading
 import time
 import urllib.request
-import venv
 import webbrowser
 from pathlib import Path
+
+from scripts.conda_runtime import python_executable
 
 ROOT = Path(__file__).resolve().parent
 
@@ -29,12 +30,11 @@ def main():
     if not 1 <= args.port <= 65535:
         parser.error("Port must be between 1 and 65535.")
     os.chdir(ROOT)
-    python = ROOT / ".venv" / ("Scripts/python.exe" if os.name == "nt" else "bin/python")
-    if sys.prefix == sys.base_prefix:
-        if not python.exists():
-            print("Creating the local Python environment…", flush=True)
-            venv.EnvBuilder(with_pip=True).create(ROOT / ".venv")
-        subprocess.check_call([str(python), "-m", "pip", "install", "-r", "requirements.txt"])
+    try:
+        python = python_executable()
+    except RuntimeError as error:
+        raise SystemExit(str(error)) from error
+    if Path(sys.executable).resolve() != python.resolve():
         os.execv(str(python), [str(python), str(ROOT / "run.py"), *sys.argv[1:]])
     if importlib.util.find_spec("fastapi") is None or importlib.util.find_spec("c3d") is None:
         subprocess.check_call([sys.executable, "-m", "pip", "install", "-r", "requirements.txt"])
