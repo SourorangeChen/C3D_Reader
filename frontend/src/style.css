@@ -327,6 +327,50 @@ button:hover:not(:disabled) {
   width: 34px;
   height: 32px;
 }
+/* The file panel button and the inspector tabs control opposite sides of
+   the window: separate groups, and an edge mark on the side they open. */
+.rail-side {
+  display: flex;
+  flex-direction: column;
+}
+.rail-side-right {
+  padding: 3px;
+  gap: 3px;
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  background: var(--surface);
+}
+.rail-side-right .icon-button {
+  width: 30px;
+  height: 30px;
+  border-color: transparent;
+  background: transparent;
+}
+.rail-divider {
+  width: 22px;
+  height: 1px;
+  margin: 2px auto;
+  background: var(--border);
+}
+.rail-side-right .icon-button.active {
+  border-color: var(--accent);
+  background: var(--button-active-bg);
+}
+.rail-side .icon-button.active:before {
+  content: "";
+  position: absolute;
+  top: 7px;
+  bottom: 7px;
+  width: 2px;
+  border-radius: 1px;
+  background: var(--accent);
+}
+.rail-side-left .icon-button.active:before {
+  left: 3px;
+}
+.rail-side-right .icon-button.active:before {
+  right: 3px;
+}
 .explorer {
   border-right: 1px solid var(--border);
   min-height: 0;
@@ -1843,7 +1887,15 @@ button:hover:not(:disabled) {
     width: 30px;
   }
   .rail-top {
-    gap: 17px;
+    gap: 12px;
+  }
+  .rail-side-right {
+    padding: 2px;
+    gap: 2px;
+  }
+  .rail-side-right .icon-button {
+    width: 28px;
+    height: 28px;
   }
   .rail-bottom {
     display: none;
