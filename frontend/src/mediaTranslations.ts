@@ -1,4 +1,6 @@
 export const mediaEnglish: Record<string, string> = {
+  关闭: "Close",
+  采样点: "samples",
   "共同 lag {0} 秒": "Shared lag {0} s",
   "共享 lag · 待复核": "Shared lag · review pending",
   "单 trial 确定 lag": "Determine lag from one trial",
