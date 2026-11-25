@@ -16,7 +16,7 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 from starlette.middleware.trustedhost import TrustedHostMiddleware
 
-from .acquisition import Acquisition, clean_json
+from .acquisition import Acquisition, clean_json, file_fingerprint
 from .alignment import estimate_lag
 from .automatic_sync import AutomaticAlignments
 from .batch_export import BatchExports
@@ -79,13 +79,13 @@ def get_acq(key):
         if key in cache:
             acquisition = cache[key]
             try:
-                stat = acquisition.path.stat()
+                fingerprint = file_fingerprint(acquisition.path)
             except OSError as exc:
                 cache.pop(key, None)
                 raise HTTPException(
                     404, "Source file is unavailable. Check the disk connection."
                 ) from exc
-            if (stat.st_size, stat.st_mtime_ns, stat.st_ino) != acquisition.fingerprint:
+            if fingerprint != acquisition.fingerprint:
                 cache.pop(key, None)
                 raise HTTPException(
                     409, "The source file changed. Open it again to refresh the acquisition."

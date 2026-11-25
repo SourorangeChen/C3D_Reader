@@ -11,6 +11,7 @@ from pathlib import Path
 
 import numpy as np
 
+from .acquisition import file_fingerprint
 from .motion_alignment import candidates, finish, observations, read_reference, search
 
 
@@ -18,11 +19,6 @@ def worker_path():
     if getattr(sys, "frozen", False):
         return Path(sys._MEIPASS) / "native" / "c3d-pose-worker"
     return Path(__file__).resolve().parents[1] / "build/pose-worker/c3d-pose-worker"
-
-
-def fingerprint(path):
-    stat = path.stat()
-    return stat.st_size, stat.st_mtime_ns, stat.st_ino
 
 
 def merge_windows(windows):
@@ -91,7 +87,7 @@ class AutomaticAlignment:
         self.fine_gap = max(0.12, float(np.median(np.diff(times))) * 1.5) if not video else 0.12
         self.fine_gap = min(self.fine_gap, 0.5)
         self.acquisition_path = acquisition.path
-        self.sources = [(p, fingerprint(p)) for p in [acquisition.path, *self.paths]]
+        self.sources = [(p, file_fingerprint(p)) for p in [acquisition.path, *self.paths]]
         self.id = secrets.token_hex(16)
         self.lock = threading.RLock()
         self.cancelled = threading.Event()
@@ -251,7 +247,7 @@ class AutomaticAlignment:
             result = finish(ref, times, points, fine_curve, low, high, max_gap=self.fine_gap)
             if self.cancelled.is_set():
                 raise InterruptedError()
-            if any(fingerprint(path) != before for path, before in self.sources):
+            if any(file_fingerprint(path) != before for path, before in self.sources):
                 raise ValueError("对齐过程中源文件发生变化，请重新打开素材。")
             result.update(
                 sourceName=self.paths[0].name
@@ -375,7 +371,7 @@ class TrainingAlignment(AutomaticAlignment):
 
             if self.cancelled.is_set():
                 raise InterruptedError()
-            if any(fingerprint(path) != before for path, before in self.sources):
+            if any(file_fingerprint(path) != before for path, before in self.sources):
                 raise ValueError("对齐过程中源文件发生变化，请重新打开素材。")
             reference_result = values["result"]
             identities, unavailable = [], []
@@ -389,7 +385,7 @@ class TrainingAlignment(AutomaticAlignment):
                         # No joint read, motion search or fit is performed for shared trials.
                         acq = self.load(key)
                         identities.append(self.identity(key, acq))
-                        if fingerprint(path) != acq.fingerprint:
+                        if file_fingerprint(path) != acq.fingerprint:
                             raise ValueError("源文件已变化，请重新打开。")
                     except (ValueError, OSError) as error:
                         if identities and identities[-1]["id"] == key:

@@ -13,7 +13,7 @@ from pathlib import Path
 
 from fastapi import HTTPException
 
-from .acquisition import Acquisition
+from .acquisition import Acquisition, file_fingerprint
 
 
 class Cancelled(Exception):
@@ -141,8 +141,7 @@ class BatchExports:
                                     self._check(job)
                                     stream.write(chunk)
                             exported.append(name)
-                        stat = source.stat()
-                        if (stat.st_size, stat.st_mtime_ns, stat.st_ino) != acq.fingerprint:
+                        if file_fingerprint(source) != acq.fingerprint:
                             raise ValueError("Source changed during export")
                         entry.update(
                             status="ok",

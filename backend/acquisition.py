@@ -55,12 +55,17 @@ class MetadataReader(c3d.Reader):
         return int(self.header.first_frame)
 
 
+def file_fingerprint(path):
+    """Size, modification time and inode: detects a source edited or replaced on disk."""
+    stat = Path(path).stat()
+    return stat.st_size, stat.st_mtime_ns, stat.st_ino
+
+
 class Acquisition:
     def __init__(self, path):
         self.path = Path(path)
-        stat = self.path.stat()
-        self.fingerprint = (stat.st_size, stat.st_mtime_ns, stat.st_ino)
-        if stat.st_size < 512:
+        self.fingerprint = file_fingerprint(self.path)
+        if self.fingerprint[0] < 512:
             raise ValueError("Truncated C3D header: a complete 512-byte header is required.")
         with self.path.open("rb") as stream:
             self.reader = MetadataReader(stream)
