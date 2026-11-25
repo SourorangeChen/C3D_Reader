@@ -16,8 +16,10 @@ jobs:
           node-version: "24"
           cache: npm
       - run: pip install -r requirements-dev.txt
+      - run: python -m ruff check .
       - run: python -m pytest -q
       - run: npm ci
+      - run: npm run format:check
       - run: npm run build
       - run: npx playwright install --with-deps chromium
       - run: npm test

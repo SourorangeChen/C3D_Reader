@@ -8,7 +8,8 @@
     "preview": "vite preview --host 127.0.0.1",
     "test": "playwright test",
     "typecheck": "tsc --noEmit",
-    "format": "prettier --write frontend/src vite.config.ts tsconfig.json playwright.config.ts tests/viewer.spec.ts",
+    "format": "prettier --write frontend/src tests scripts desktop vite.config.ts playwright.config.ts playwright.desktop.config.ts tsconfig.json",
+    "format:check": "prettier --check frontend/src tests scripts desktop vite.config.ts playwright.config.ts playwright.desktop.config.ts tsconfig.json",
     "desktop:dev": "electron .",
     "desktop:build": "node scripts/python-runtime.cjs scripts/build_macos.py",
     "test:desktop": "playwright test --config playwright.desktop.config.ts"

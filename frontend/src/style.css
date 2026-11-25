@@ -3111,9 +3111,36 @@ select {
   }
 }
 
-.training-results { margin-top: 10px; font-size: 12px; }
-.training-results summary { cursor: pointer; color: var(--muted); }
-.training-results ul { list-style: none; padding: 0; margin: 8px 0 0; max-height: 180px; overflow: auto; }
-.training-results li { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 4px 12px; padding: 6px 0; border-bottom: 1px solid var(--rule); }
-.training-results li button { max-width: 100%; overflow-wrap: anywhere; text-align: left; }
-.training-results li small { flex-basis: 100%; color: var(--muted); }
+.training-results {
+  margin-top: 10px;
+  font-size: 12px;
+}
+.training-results summary {
+  cursor: pointer;
+  color: var(--muted);
+}
+.training-results ul {
+  list-style: none;
+  padding: 0;
+  margin: 8px 0 0;
+  max-height: 180px;
+  overflow: auto;
+}
+.training-results li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 4px 12px;
+  padding: 6px 0;
+  border-bottom: 1px solid var(--rule);
+}
+.training-results li button {
+  max-width: 100%;
+  overflow-wrap: anywhere;
+  text-align: left;
+}
+.training-results li small {
+  flex-basis: 100%;
+  color: var(--muted);
+}

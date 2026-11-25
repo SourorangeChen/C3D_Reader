@@ -21,21 +21,40 @@ function resolvePython() {
     "conda",
     "/opt/homebrew/Caskroom/miniforge/base/bin/conda",
     ...["miniforge3", "miniconda3", "anaconda3"].map((folder) =>
-      path.join(os.homedir(), folder, process.platform === "win32" ? "Scripts/conda.exe" : "bin/conda"),
+      path.join(
+        os.homedir(),
+        folder,
+        process.platform === "win32" ? "Scripts/conda.exe" : "bin/conda",
+      ),
     ),
   ];
   for (const executable of [...new Set(candidates.filter(Boolean))]) {
     try {
-      const info = JSON.parse(execFileSync(executable, ["env", "list", "--json"], {
-        encoding: "utf8", timeout: 30000, stdio: ["ignore", "pipe", "pipe"],
-      }));
-      const root = info.envs.find((prefix) => path.basename(prefix) === name && existsSync(path.join(prefix, "conda-meta")));
+      const info = JSON.parse(
+        execFileSync(executable, ["env", "list", "--json"], {
+          encoding: "utf8",
+          timeout: 30000,
+          stdio: ["ignore", "pipe", "pipe"],
+        }),
+      );
+      const root = info.envs.find(
+        (prefix) =>
+          path.basename(prefix) === name &&
+          existsSync(path.join(prefix, "conda-meta")),
+      );
       if (!root) continue;
-      const python = path.join(root, process.platform === "win32" ? "python.exe" : "bin/python");
+      const python = path.join(
+        root,
+        process.platform === "win32" ? "python.exe" : "bin/python",
+      );
       if (existsSync(python)) return (cached = python);
-    } catch { /* Try the next known Conda installation. */ }
+    } catch {
+      /* Try the next known Conda installation. */
+    }
   }
-  throw new Error(`缺少 Conda 环境 ${name}。请按 README 创建并安装依赖，或设置 C3D_READER_PYTHON。`);
+  throw new Error(
+    `缺少 Conda 环境 ${name}。请按 README 创建并安装依赖，或设置 C3D_READER_PYTHON。`,
+  );
 }
 
 module.exports = { resolvePython };
